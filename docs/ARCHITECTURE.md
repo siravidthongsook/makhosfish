@@ -14,8 +14,8 @@ layer, and a thin protocol/CLI shell. Nothing in the hot path allocates or touch
  |  src/core/*              src/core/*                src/search/*  |
  |         |                                          |            |
  |         v                                          v            |
- |     Zobrist hashing                            Eval (E0/E1/E2)  |
- |     src/core/zobrist.*                         src/eval/*       |
+ |     Zobrist hashing                    Eval (E0/E1/E2), Egdb    |
+ |     src/core/zobrist.*                 src/eval/*, src/egdb/*   |
  +---------------------------------------------------------------+
                               |
                  +---------------------------+
@@ -100,7 +100,32 @@ generic generator against published perft counts (`tests/test_variants.cpp`).
   - Weights live in `data/patterns/thai_e2.mhpw` (`.mhpw`, spec §20.6) and are loaded via CLI
     `--pattern` or TCI `setoption name PatternFile` into `active_pattern()`.
 
-## 6. Protocol and CLI (`src/protocol`, `src/main.cpp`)
+## 6. Endgame databases (`src/egdb`)
+
+WLD (win/loss/draw) bitbases solved by **Thompson/Bellman backward induction** — the same
+technique as Chinook/Scan. Small endgames are common in Thai because captures strip pieces fast.
+
+- **Indexing** (`bitbase.cpp`): a position is indexed combinatorially. The four piece classes
+  (WM/WK/BM/BK) are packed in fixed order; each class contributes a colex-rank digit over the
+  squares not yet used by earlier classes, giving one dense slot per `(placement, side to move)`.
+  `EgdbLayout::encode`/`decode` are inverse bijections; `k_size[k]` is the slot count for exactly
+  k pieces.
+- **Solver** (`retrograde.cpp`): `solve_upto(kmax)` solves k = 1..kmax ascending. A first forward
+  sweep marks positions with no legal move as Loss, any position with a capture into an
+  already-solved *losing* lower position as Win, and counts each position's remaining children.
+  A work queue then propagates: a Loss child makes every parent Win, and a Win child decrements
+  each parent's remaining count (reaching zero ⇒ Loss). Whatever stays unresolved after the queue
+  drains is a Draw (a cycle). Because the queue needs *predecessors*, the solver uses **reverse
+  quiet-move generation** rather than storing edges: for each king/man in the child it walks back
+  to the squares it could have come from, keeping a candidate parent only if it has no compulsory
+  capture (so the quiet move is actually legal). This keeps memory linear in the position count and
+  is what will let the same code reach ≤6/≤8.
+- **Independence & invariants**: `tests/test_egdb.cpp` cross-checks `solve_upto` against a second,
+  independently written forward value-iteration solver, and asserts the colour-mirror invariant
+  `WDL(p) == WDL(mirror(p))` (swap colours + rotate the board + flip the side to move) over the
+  whole space. The 50-move and repetition rules are ignored, so e.g. K vs K is an exact Draw.
+
+## 7. Protocol and CLI (`src/protocol`, `src/main.cpp`)
 
 - **FEN** (`fen.{hpp,cpp}`): frozen `<stm>:W<list>:B<list>[:<rule50>]`, strict parsing (a mid-list
   colour letter is rejected, not silently dropped).
@@ -113,7 +138,7 @@ generic generator against published perft counts (`tests/test_variants.cpp`).
 - **CLI** (`main.cpp`): `tci`, `pdn`, `play`, `perft`, `go`, `bench`, `selfplay`, `gauntlet`, and a
   global `--pattern <file>` option.
 
-## 7. Data pipeline (offline)
+## 8. Data pipeline (offline)
 
 ```
 datagen (self-play)  ──►  <fen> <result>  ──►  tune (Texel SGD)  ──►  .mhpw  ──►  engine
@@ -125,7 +150,7 @@ depth, labelling every position with the final result from the side-to-move's pe
 `sigmoid(ln10·eval_stm/400)` and the result, using a 90/10 train/val split and best-val selection.
 The E1 score is a fixed offset, so the tuner only learns the E2 correction on top of E1.
 
-## 8. Key decisions and trade-offs
+## 9. Key decisions and trade-offs
 
 - **Dense 32-bit over padded 64-bit board:** trivial copy-make, matches the external numbering
   1:1. Revisit only if mask lookups dominate in profiling.

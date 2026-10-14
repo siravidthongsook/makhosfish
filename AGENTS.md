@@ -91,6 +91,12 @@ and (for eval/search changes) a gauntlet that shows the change helps.
 | `eval.{hpp,cpp}` | `EvalMode{E0,E1,E2}`, `EvalDetail`, `evaluate`, `pst_of`, `move_pst_delta` |
 | `pattern.{hpp,cpp}` | `PatternEval` (E2 windows/codes/weights, `.mhpw` load/save), `active_pattern()` |
 
+### Endgame DB — `src/egdb/`
+| File | Purpose |
+|------|---------|
+| `bitbase.{hpp,cpp}` | `Wdl` (side-to-move-relative), `EgdbLayout` (combinatorial index over the 4 piece classes; `encode`/`decode`, dense per-piece-count tables) |
+| `retrograde.{hpp,cpp}` | `Egdb`, `Egdb::probe`, `solve_upto(kmax)` — Thompson/Bellman backward induction using reverse **quiet**-move predecessor generation |
+
 ### Protocol / CLI — `src/protocol/`, `src/main.cpp`
 | File | Purpose |
 |------|---------|
@@ -104,7 +110,7 @@ and (for eval/search changes) a gauntlet that shows the change helps.
 
 ### Tests — `tests/`
 `test_{movegen,rules,zobrist,fen,perft_agreement,perft_fixtures,variants,search,eval,pattern,
-notation,pdn,tci}.cpp`; independent generator `reference_movegen.{hpp,cpp}`; fixtures
+egdb,notation,pdn,tci}.cpp`; independent generator `reference_movegen.{hpp,cpp}`; fixtures
 `perft_fixtures.txt` (Thai) and `perft_variants.txt`; helpers `test_util.hpp`, `test_main.cpp`.
 
 ### Data & other
@@ -127,7 +133,15 @@ notation,pdn,tci}.cpp`; independent generator `reference_movegen.{hpp,cpp}`; fix
   (`PAIR[w]`), which makes `score(mirror(p)) == -score(p)` for *any* weights, so the engine can
   never acquire a colour bias and the tuner needs no symmetry constraints. `E2 = E1 + pattern`,
   so unloaded weights are bit-identical to E1. See `src/eval/pattern.hpp` for the proof sketch.
-- **Not yet built:** opening book (`src/book/`), endgame bitbases (`src/egdb/`) — later milestones.
+- **Endgame DB:** WLD bitbases via Thompson/Bellman backward induction. `EgdbLayout` indexes
+  every placement of the 4 piece classes on the 32 dark squares (combinatorial `encode`/`decode`);
+  `solve_upto(k)` solves 1..k pieces ascending, reading captures from the already-solved lower
+  tables. Predecessors come from reverse **quiet**-move generation (no edge storage, so it scales),
+  and a candidate parent is only kept if it has no compulsory capture. A colour-mirror invariant
+  (`WDL(p) == WDL(mirror(p))`) holds by construction and is tested. The 50-move/repetition rules
+  are ignored (standard WLD convention).
+- **Not yet built:** opening book (`src/book/`); endgame DB file storage + search probe (M5 still in
+  progress — in-memory solving to ≤4 works today).
 
 ---
 
@@ -141,7 +155,7 @@ notation,pdn,tci}.cpp`; independent generator `reference_movegen.{hpp,cpp}`; fix
 | M2 | E0/E1 eval + self-play gauntlet | DONE (`c4fbae1`) |
 | M3 | TCI v1 + full notation + PDN/FEN + CLI | DONE (`9372f09`) |
 | M4 | E2 pattern eval + datagen + tuning | DONE (`37a8665`) |
-| M5 | endgame bitbases (≤6, then ≤8) | next |
+| M5 | endgame bitbases (≤6, then ≤8) | IN PROGRESS — indexer + WLD solver ≤4, reference cross-check, tests; file storage + probe next |
 | M6 | opening book + Lazy SMP | — |
 | M7 | NNUE (E3) + extend DBs toward full solve | — |
 

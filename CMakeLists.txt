@@ -39,6 +39,8 @@ add_library(makhosfish_core STATIC
   src/protocol/tci.cpp
   src/eval/eval.cpp
   src/eval/pattern.cpp
+  src/egdb/bitbase.cpp
+  src/egdb/retrograde.cpp
   src/search/tt.cpp
   src/search/search.cpp
 )
@@ -78,6 +80,7 @@ add_executable(makhosfish_tests
   tests/test_search.cpp
   tests/test_eval.cpp
   tests/test_pattern.cpp
+  tests/test_egdb.cpp
   tests/test_notation.cpp
   tests/test_pdn.cpp
   tests/test_tci.cpp

@@ -612,6 +612,12 @@ pattern-window shapes — all decided by benchmark evidence, not fiat.
   Cost ≈18% nps (12 table lookups/eval). 70 cases green (incl. rot180-closure, antisymmetry,
   zero-weight==E1, `.mhpw` round-trip); ASan/UBSan clean; Thai perft(9)=114 530 830 unchanged.
 - **M5 — Endgame bitbases (≤6, then ≤8).** Exit: perfect play in small endgames.
+  *In progress:* combinatorial `EgdbLayout` (`encode`/`decode`, dense per-piece-count tables) and a
+  Thompson/Bellman WLD solver (`solve_upto`) using reverse **quiet**-move predecessor generation
+  (no edge storage). Verified to ≤4: index bijection + multinomial size, agreement with an
+  independent forward value-iteration solver, the colour-mirror invariant `WDL(p)==WDL(mirror(p))`,
+  and known endgames (K-K draw, bare-side loss, win-in-1). File storage (`.mhdb`) and the search
+  probe are next; the 50-move/repetition rules are ignored (standard WLD convention).
 - **M6 — Opening book + parallel search (Lazy SMP).** Exit: strong, fast, tournament-ready.
 - **M7 — NNUE (E3) if it wins + extend DBs toward full solve.** Exit: near/at solved.
 
