@@ -4,6 +4,7 @@
 #include "core/move.hpp"
 #include "core/position.hpp"
 #include "core/rules.hpp"
+#include "eval/eval.hpp"
 #include "search/tt.hpp"
 
 namespace mhf {
@@ -32,6 +33,10 @@ class Searcher {
   void clear();
   void new_game();
 
+  // Selects the evaluation stage (E1 default). Lets a gauntlet pit E1 vs E0.
+  void set_eval_mode(EvalMode m) { eval_mode_ = m; }
+  EvalMode eval_mode() const { return eval_mode_; }
+
   // `game_hashes` = hashes of the game history *before* the root position.
   SearchInfo go(Position& p, const RuleSet& r, const SearchLimits& limits,
                 const std::vector<uint64_t>& game_hashes = {});
@@ -51,6 +56,7 @@ class Searcher {
   const RuleSet* rules_ = nullptr;
   SearchInfo info_;
   SearchLimits limits_;
+  EvalMode eval_mode_ = EvalMode::E1;
 
   uint64_t nodes_ = 0;
   bool stopped_ = false;

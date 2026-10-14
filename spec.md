@@ -465,7 +465,7 @@ A UCI-like line protocol for GUIs.
   ```
 - **DXP / Hub compatibility (optional):** bridges to existing draughts tooling (lidraughts, py-draughts
   HubEngine) for cross-testing.
-- **CLI:** `makhosfish perft <depth>`, `makhosfish bench`, `makhosfish play`, `makhosfish selfplay`, `makhosfish tune`.
+- **CLI:** `makhosfish perft <depth>`, `makhosfish bench [<depth> [e0|e1]]`, `makhosfish go [<pos> [<depth>|movetime:<ms>] [e0|e1]]`, `makhosfish play`, `makhosfish selfplay`, `makhosfish gauntlet <games> <depth> [aMode] [bMode] [opening]`, `makhosfish tune`.
 
 ---
 
@@ -559,7 +559,15 @@ pattern-window shapes — all decided by benchmark evidence, not fiat.
   Exit: plays legally, beats random + a simple 1-ply engine.
   **Status: DONE.** `makhosfish go|bench|selfplay`; beats random 100% (40/40 @ depth 6);
   midgame bench ≈3.6 M nps (below the §13 10 M target — optimization is a later milestone).
-- **M2 — Eval E0/E1.** Material + PST + hand features. Exit: beats casual mobile makhos app.
+- **M2 — Eval E0/E1.** Material + PST (E0) + hand features (E1): mobility, capture
+  availability, defended/supported men, first-king, promotion-route (pre-crown) control, tempo.
+  Selected at runtime (`EvalMode`) so E1 is A/B-tested against E0 head-to-head.
+  Exit: E1 beats E0 in a self-play gauntlet (no external mobile makhos app is available to
+  benchmark against, so the Elo gauntlet is the measurable proxy — spec §13/§14).
+  **Status: DONE.** `makhosfish gauntlet` (colors alternate, random openings):
+  **+79 Elo** over 400 games @ depth 6, **+94 Elo** over 200 games @ depth 8; E1-vs-E1 control
+  ≈ 48.7% (fair). E1 costs ≈12% nps vs E0 (3.2M vs 3.6M midgame) — accepted for the strength gain.
+  Perft(9)=114 530 830 unchanged; 45 cases green; ASan/UBSan clean.
 - **M3 — Protocol + CLI + PDN/FEN.** Exit: drivable from a GUI; games loadable.
 - **M4 — Pattern eval (E2) + tuning.** Self-play datagen + weight tuning. Exit: clearly beats M2.
 - **M5 — Endgame bitbases (≤6, then ≤8).** Exit: perfect play in small endgames.

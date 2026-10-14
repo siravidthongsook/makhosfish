@@ -86,7 +86,7 @@ void Searcher::order_moves(const Position& p, Move* moves, int n, const Move& tt
 
 int Searcher::negamax(Position& p, int depth, int alpha, int beta, int ply, bool pvNode) {
   pv_len_[ply] = 0;
-  if (ply >= MAX_PLY - 1) return evaluate(p, *rules_);
+  if (ply >= MAX_PLY - 1) return evaluate(p, *rules_, eval_mode_);
   if (ply > seldepth_) seldepth_ = ply;
   ++nodes_;
   if (stop_check()) { stopped_ = true; return 0; }
@@ -106,7 +106,7 @@ int Searcher::negamax(Position& p, int depth, int alpha, int beta, int ply, bool
     if (is_repetition(p.hash, ply)) return DRAW_SCORE;
   }
 
-  if (depth <= 0) return evaluate(p, *rules_);
+  if (depth <= 0) return evaluate(p, *rules_, eval_mode_);
 
   // Mate-distance pruning keeps scores inside the current ply window.
   alpha = std::max(alpha, -MATE_SCORE + ply);

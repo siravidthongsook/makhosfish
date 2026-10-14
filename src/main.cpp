@@ -1,11 +1,15 @@
+#include <chrono>
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <random>
 #include <string>
+#include <unordered_map>
 #include <vector>
 #include "core/movegen.hpp"
 #include "core/perft.hpp"
 #include "core/position.hpp"
+#include "eval/eval.hpp"
 #include "protocol/fen.hpp"
 #include "search/search.hpp"
 
@@ -17,6 +21,11 @@ bool load_position(const std::string& tok, const RuleSet& r, Position& p) {
   if (tok == "startpos") { p = start_position(r); return true; }
   return parse_fen(tok, p, r);
 }
+
+EvalMode parse_eval(const std::string& s) {
+  return (s == "e0" || s == "E0") ? EvalMode::E0 : EvalMode::E1;
+}
+const char* eval_name(EvalMode m) { return m == EvalMode::E0 ? "e0" : "e1"; }
 
 int cmd_perft(int argc, char** argv, int base) {
   RuleSet r = thai_rules();
@@ -49,6 +58,7 @@ int cmd_go(int argc, char** argv) {
   }
 
   Searcher s(64);
+  if (argc > 4) s.set_eval_mode(parse_eval(argv[4]));
   SearchInfo info = s.go(p, r, lim);
 
   std::printf("info depth %d seldepth %d score cp %d nodes %llu time %lld pv",
@@ -71,6 +81,7 @@ int cmd_bench(int argc, char** argv) {
   }
 
   Searcher s(32);
+  if (argc > 3) s.set_eval_mode(parse_eval(argv[3]));
   SearchLimits lim;
   lim.depth = depth;
   SearchInfo info = s.go(p, r, lim);
@@ -128,6 +139,72 @@ int cmd_selfplay(int argc, char** argv) {
   return 0;
 }
 
+// Play engine A (modeA) against engine B (modeB), colors alternating, random
+// openings for diversity. Reports score and a logistic Elo delta -- the M2
+// exit gate "E1 beats E0" (spec §16).
+int cmd_gauntlet(int argc, char** argv) {
+  const int games = (argc > 2) ? std::atoi(argv[2]) : 50;
+  const int depth = (argc > 3) ? std::atoi(argv[3]) : 6;
+  const EvalMode modeA = (argc > 4) ? parse_eval(argv[4]) : EvalMode::E1;
+  const EvalMode modeB = (argc > 5) ? parse_eval(argv[5]) : EvalMode::E0;
+  const int opening = (argc > 6) ? std::atoi(argv[6]) : 4;
+  RuleSet r = thai_rules();
+  std::mt19937_64 rng(0xC0FFEEull);
+
+  int aWins = 0, bWins = 0, draws = 0;
+  const auto t0 = std::chrono::steady_clock::now();
+
+  for (int g = 0; g < games; ++g) {
+    Position p = start_position(r);
+    const Color aColor = (g % 2 == 0) ? WHITE : BLACK;
+    Searcher sa(32), sb(32);
+    sa.set_eval_mode(modeA);
+    sb.set_eval_mode(modeB);
+    std::vector<uint64_t> hist;
+    std::unordered_map<uint64_t, int> seen;
+    int result = 0;  // +1 A win, -1 B win, 0 draw
+
+    for (int ply = 0; ply < 400; ++ply) {
+      Move buf[256];
+      const int n = generate_moves(p, r, buf, 256);
+      if (n == 0) { result = (p.stm == aColor) ? -1 : 1; break; }
+      if (r.draw_no_progress_plies && p.rule50 >= r.draw_no_progress_plies) { result = 0; break; }
+      if (++seen[p.hash] >= 3) { result = 0; break; }
+
+      Move m;
+      if (ply < opening) {
+        std::uniform_int_distribution<int> d(0, n - 1);
+        m = buf[d(rng)];
+      } else {
+        SearchLimits lim;
+        lim.depth = depth;
+        Searcher& s = (p.stm == aColor) ? sa : sb;
+        SearchInfo info = s.go(p, r, lim, hist);
+        m = info.pv.empty() ? buf[0] : info.pv[0];
+      }
+      hist.push_back(p.hash);
+      do_move(p, m, r);
+    }
+
+    if (result > 0) ++aWins;
+    else if (result < 0) ++bWins;
+    else ++draws;
+  }
+
+  const double sec = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
+  const double score = games ? (aWins + 0.5 * draws) / games : 0.0;
+  double elo = 0.0;
+  if (score >= 1.0) elo = 999.0;
+  else if (score <= 0.0) elo = -999.0;
+  else elo = -400.0 * std::log10(1.0 / score - 1.0);
+
+  std::printf("gauntlet %d games depth %d A=%s B=%s opening %d: A %d B %d D %d  "
+              "score %.3f  ~%+.0f Elo  (%.1fs)\n",
+              games, depth, eval_name(modeA), eval_name(modeB), opening,
+              aWins, bWins, draws, score, elo, sec);
+  return 0;
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -136,5 +213,6 @@ int main(int argc, char** argv) {
   if (cmd == "go") return cmd_go(argc, argv);
   if (cmd == "bench") return cmd_bench(argc, argv);
   if (cmd == "selfplay") return cmd_selfplay(argc, argv);
+  if (cmd == "gauntlet") return cmd_gauntlet(argc, argv);
   return cmd_perft(argc, argv, 1);  // legacy: makhosfish [<pos>] [<depth>]
 }
