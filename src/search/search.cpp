@@ -142,7 +142,10 @@ int Searcher::negamax(Position& p, int depth, int alpha, int beta, int ply, bool
 
     do_move(p, m, *rules_);
     path_[ply + 1] = p.hash;
-    const int newDepth = depth - 1;
+    int newDepth = depth - 1;
+    // Single-reply extension (Scan), quiet moves only: a lone quiet move has no
+    // branching cost; MAX_PLY + repetition bound the recursion.
+    if (n == 1 && !m.is_capture() && ply + 1 < MAX_PLY - 1) ++newDepth;
     int score;
 
     if (moveCount == 0) {
