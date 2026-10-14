@@ -2,7 +2,10 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <fstream>
+#include <iostream>
 #include <random>
+#include <sstream>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -11,6 +14,8 @@
 #include "core/position.hpp"
 #include "eval/eval.hpp"
 #include "protocol/fen.hpp"
+#include "protocol/pdn.hpp"
+#include "protocol/tci.hpp"
 #include "search/search.hpp"
 
 using namespace mhf;
@@ -20,6 +25,31 @@ namespace {
 bool load_position(const std::string& tok, const RuleSet& r, Position& p) {
   if (tok == "startpos") { p = start_position(r); return true; }
   return parse_fen(tok, p, r);
+}
+
+// Simple 8x8 board for the `play`/`pdn` commands. Uppercase = king.
+std::string render_board(const Position& p) {
+  std::string s;
+  s += "    1  2  3  4  5  6  7  8\n";
+  for (int r = 0; r < 8; ++r) {
+    s += "  ";
+    s += char('a' + r);
+    for (int c = 0; c < 8; ++c) {
+      s += ' ';
+      if (((r + c) & 1) == 0) { s += '.'; s += ' '; continue; }
+      const int f = (r & 1) ? c / 2 : (c - 1) / 2;
+      const int sq = r * 4 + f;
+      char ch = '.';
+      if (p.wm & bit(sq)) ch = 'w';
+      else if (p.wk & bit(sq)) ch = 'W';
+      else if (p.bm & bit(sq)) ch = 'b';
+      else if (p.bk & bit(sq)) ch = 'B';
+      s += ch; s += ' ';
+    }
+    s += '\n';
+  }
+  s += (p.stm == WHITE) ? "  White (w) to move\n" : "  Black (b) to move\n";
+  return s;
 }
 
 EvalMode parse_eval(const std::string& s) {
@@ -64,10 +94,10 @@ int cmd_go(int argc, char** argv) {
   std::printf("info depth %d seldepth %d score cp %d nodes %llu time %lld pv",
               info.depth, info.seldepth, info.score_cp,
               (unsigned long long)info.nodes, (long long)info.time_ms);
-  for (const Move& m : info.pv) std::printf(" %s", move_to_string(m).c_str());
+  for (const Move& m : info.pv) std::printf(" %s", move_to_notation(p, r, m).c_str());
   std::printf("\n");
   std::printf("bestmove %s\n",
-              info.pv.empty() ? "(none)" : move_to_string(info.pv[0]).c_str());
+              info.pv.empty() ? "(none)" : move_to_notation(p, r, info.pv[0]).c_str());
   return 0;
 }
 
@@ -90,8 +120,8 @@ int cmd_bench(int argc, char** argv) {
                          : 0.0;
   std::printf("depth %d nodes %llu nps %.0f bestmove %s pv",
               info.depth, (unsigned long long)info.nodes, nps,
-              info.pv.empty() ? "(none)" : move_to_string(info.pv[0]).c_str());
-  for (const Move& m : info.pv) std::printf(" %s", move_to_string(m).c_str());
+              info.pv.empty() ? "(none)" : move_to_notation(p, r, info.pv[0]).c_str());
+  for (const Move& m : info.pv) std::printf(" %s", move_to_notation(p, r, m).c_str());
   std::printf("\n");
   return 0;
 }
@@ -205,10 +235,107 @@ int cmd_gauntlet(int argc, char** argv) {
   return 0;
 }
 
+// TCI v1 protocol server on stdin/stdout (spec §11.1) -- the GUI entry point.
+int cmd_tci() {
+  TciSession session;
+  session.run(std::cin, std::cout);
+  return 0;
+}
+
+// Load a PDN game, replay it against the rules, and report. `--fens` prints the
+// position after every ply.
+int cmd_pdn(int argc, char** argv) {
+  if (argc < 3) {
+    std::fprintf(stderr, "usage: makhosfish pdn <file.pdn> [--fens]\n");
+    return 2;
+  }
+  std::ifstream f(argv[2]);
+  if (!f) { std::fprintf(stderr, "cannot open %s\n", argv[2]); return 2; }
+  std::stringstream ss;
+  ss << f.rdbuf();
+
+  const RuleSet r = thai_rules();
+  const PdnGame g = parse_pdn(ss.str());
+  std::printf("pdn: %zu tags, %zu moves, result %s\n", g.tags.size(), g.moves.size(),
+              g.result.empty() ? "'*'" : g.result.c_str());
+  for (const PdnTag& t : g.tags) std::printf("  [%s \"%s\"]\n", t.name.c_str(), t.value.c_str());
+
+  const PdnReplay rep = replay_pdn(g, r);
+  if (!rep.ok) { std::printf("replay FAILED: %s\n", rep.error.c_str()); return 1; }
+  std::printf("replay ok; final fen %s\n", to_fen(rep.final).c_str());
+
+  if (argc > 3 && std::string(argv[3]) == "--fens")
+    for (size_t i = 0; i < rep.positions.size(); ++i)
+      std::printf("  ply %zu %s\n", i, to_fen(rep.positions[i]).c_str());
+  return 0;
+}
+
+// Minimal interactive session: you play White, the engine plays Black.
+int cmd_play(int argc, char** argv) {
+  const int depth = (argc > 2) ? std::atoi(argv[2]) : 8;
+  const EvalMode mode = (argc > 3) ? parse_eval(argv[3]) : EvalMode::E1;
+  RuleSet r = thai_rules();
+  Position p = start_position(r);
+  Searcher s(64);
+  s.set_eval_mode(mode);
+  std::vector<uint64_t> hist;
+
+  std::printf("%s\n", render_board(p).c_str());
+  std::printf("You are White (w). Commands: <move> (e.g. 24-20, 26x17x10), "
+              "'hint', 'fen', 'quit'.\n");
+
+  std::string line;
+  for (;;) {
+    Move buf[256];
+    const int n = generate_moves(p, r, buf, 256);
+    if (n == 0) {
+      std::printf("%s has no legal move -> %s wins.\n",
+                  p.stm == WHITE ? "White" : "Black",
+                  p.stm == WHITE ? "Black" : "White");
+      break;
+    }
+
+    if (p.stm == BLACK) {
+      SearchLimits lim; lim.depth = depth;
+      const SearchInfo info = s.go(p, r, lim, hist);
+      const Move m = info.pv.empty() ? buf[0] : info.pv[0];
+      std::printf("engine: %s  (depth %d, score cp %d)\n",
+                  move_to_notation(p, r, m).c_str(), info.depth, info.score_cp);
+      hist.push_back(p.hash);
+      do_move(p, m, r);
+      std::printf("%s\n", render_board(p).c_str());
+      continue;
+    }
+
+    std::printf("you> ");
+    std::fflush(stdout);
+    if (!std::getline(std::cin, line)) break;
+    std::string t;
+    for (char c : line) if (!std::isspace((unsigned char)c)) t.push_back(c);
+    if (t == "quit" || t == "exit") break;
+    if (t == "fen") { std::printf("%s\n", to_fen(p).c_str()); continue; }
+    if (t == "hint") {
+      SearchLimits lim; lim.depth = depth;
+      const SearchInfo info = s.go(p, r, lim, hist);
+      if (!info.pv.empty()) std::printf("hint: %s\n", move_to_notation(p, r, info.pv[0]).c_str());
+      continue;
+    }
+    Move m;
+    if (!parse_move(p, t, r, m)) { std::printf("illegal move: %s\n", line.c_str()); continue; }
+    hist.push_back(p.hash);
+    do_move(p, m, r);
+    std::printf("%s\n", render_board(p).c_str());
+  }
+  return 0;
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
   const std::string cmd = (argc >= 2) ? argv[1] : "";
+  if (cmd == "tci") return cmd_tci();
+  if (cmd == "pdn") return cmd_pdn(argc, argv);
+  if (cmd == "play") return cmd_play(argc, argv);
   if (cmd == "perft") return cmd_perft(argc, argv, 2);
   if (cmd == "go") return cmd_go(argc, argv);
   if (cmd == "bench") return cmd_bench(argc, argv);

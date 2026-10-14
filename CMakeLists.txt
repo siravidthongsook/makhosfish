@@ -35,11 +35,16 @@ add_library(makhosfish_core STATIC
   src/core/position.cpp
   src/core/movegen.cpp
   src/protocol/fen.cpp
+  src/protocol/pdn.cpp
+  src/protocol/tci.cpp
   src/eval/eval.cpp
   src/search/tt.cpp
   src/search/search.cpp
 )
 target_include_directories(makhosfish_core PUBLIC src)
+
+find_package(Threads REQUIRED)
+target_link_libraries(makhosfish_core PUBLIC Threads::Threads)
 
 # --- executables --------------------------------------------------------
 add_executable(makhosfish src/main.cpp)
@@ -65,6 +70,9 @@ add_executable(makhosfish_tests
   tests/test_variants.cpp
   tests/test_search.cpp
   tests/test_eval.cpp
+  tests/test_notation.cpp
+  tests/test_pdn.cpp
+  tests/test_tci.cpp
   tests/reference_movegen.cpp
 )
 target_include_directories(makhosfish_tests PRIVATE third_party tests)

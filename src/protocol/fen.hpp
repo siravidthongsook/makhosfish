@@ -11,10 +11,17 @@ namespace mhf {
 bool parse_fen(const std::string& s, Position& p, const RuleSet& r = RuleSet{});
 std::string to_fen(const Position& p);
 
-// Move notation (spec §11.0): "24-20" quiet, "26x17" capture.
-// NOTE(M3): multi-jump landing paths ("32x23x14") and full-chain PDN output are
-// deferred until the Move carries its intermediate landing squares.
+// Compact move notation (spec §11.0), without intermediate landing squares:
+// "24-20" quiet, "26x17" capture chain endpoints only. Used for internal logs.
 std::string move_to_string(const Move& m);
+
+// Full notation including every landing square of a multi-jump
+// (e.g. "32x23x14"), external 1..32 numbering. Requires the position to find
+// the chain, so it is only used on the cold protocol/PDN path.
+std::string move_to_notation(const Position& p, const RuleSet& r, const Move& m);
+
+// Accepts either the compact form or the full multi-jump form; the multi-jump
+// chain must match a legal move exactly.
 bool parse_move(const Position& p, const std::string& s, const RuleSet& r, Move& out);
 
 } // namespace mhf

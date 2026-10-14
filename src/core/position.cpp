@@ -20,8 +20,12 @@ uint64_t recompute_hash(const Position& p) {
 
 Position start_position(const RuleSet& r) {
   Position p;
-  p.wm = 0xFF000000u;   // squares 24..31
-  p.bm = 0x000000FFu;   // squares 0..7
+  // Each side fills its nearest `rows_of_pieces` rows, 4 dark squares per row
+  // (internal row*4..row*4+3). Thai (2 rows) => 8 men; variants (3 rows) => 12.
+  const int rows = r.rows_of_pieces;
+  const uint32_t low = (rows >= 8) ? 0xFFFFFFFFu : ((1u << (4 * rows)) - 1u);
+  p.bm = low;                                        // black back rows (0..rows-1)
+  p.wm = low << (32 - 4 * rows);                     // white back rows (8-rows..7)
   p.stm = r.first_move;
   p.game_ply = 0;
   p.rule50 = 0;

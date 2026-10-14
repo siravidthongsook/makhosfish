@@ -1,6 +1,8 @@
 #include "doctest/doctest.h"
+#include <algorithm>
 #include <chrono>
 #include <random>
+#include <thread>
 #include <vector>
 #include "core/movegen.hpp"
 #include "core/position.hpp"
@@ -18,6 +20,39 @@ bool is_legal(const std::vector<Move>& legal, const Move& m) {
   return false;
 }
 } // namespace
+
+TEST_CASE("info callback streams one event per iterative-deepening iteration") {
+  RuleSet r = thai_rules();
+  Searcher s(16);
+  int iterations = 0;
+  int max_depth = 0;
+  s.set_info_callback([&](const SearchInfo& info) {
+    ++iterations;
+    max_depth = std::max(max_depth, info.depth);
+  });
+  Position p = start_position(r);
+  SearchLimits lim;
+  lim.depth = 6;
+  const SearchInfo info = s.go(p, r, lim);
+  CHECK(info.depth == 6);
+  CHECK(iterations == 6);
+  CHECK(max_depth == 6);
+}
+
+TEST_CASE("request_stop from another thread ends the search") {
+  RuleSet r = thai_rules();
+  Searcher s(16);
+  Position p = start_position(r);
+  SearchLimits lim;
+  lim.depth = 40;
+  std::thread stopper([&] {
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    s.request_stop();
+  });
+  const SearchInfo info = s.go(p, r, lim);
+  stopper.join();
+  CHECK(info.depth < 40);  // stopped well before the depth cap
+}
 
 TEST_CASE("best move is legal across several FENs") {
   RuleSet r = thai_rules();

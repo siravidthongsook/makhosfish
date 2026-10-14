@@ -135,19 +135,38 @@ std::string move_to_string(const Move& m) {
   return std::to_string(int(m.from) + 1) + sep + std::to_string(int(m.to) + 1);
 }
 
-bool parse_move(const Position& p, const std::string& s, const RuleSet& r, Move& out) {
-  auto dash = s.find('-');
-  auto ex = s.find('x');
-  size_t pos = std::min(dash == std::string::npos ? s.size() : dash,
-                        ex == std::string::npos ? s.size() : ex);
-  if (pos == s.size()) return false;
-  int a = 0, b = 0;
-  if (!parse_uint(s.substr(0, pos), a)) return false;
-  if (!parse_uint(s.substr(pos + 1), b)) return false;
-  if (a < 1 || a > 32 || b < 1 || b > 32) return false;
+// `p[0]` = chain length L; `p[1..L]` = internal squares (from ... to).
+std::string format_chain(const Move& m, const uint8_t* p) {
+  const char sep = m.is_capture() ? 'x' : '-';
+  const int L = p[0];
+  std::string out;
+  for (int k = 1; k <= L; ++k) {
+    if (k > 1) out.push_back(sep);
+    out += std::to_string(int(p[k]) + 1);
+  }
+  return out;
+}
 
-  for (const Move& m : legal_moves(p, r))
-    if (m.from == a - 1 && m.to == b - 1) { out = m; return true; }
+std::string move_to_notation(const Position& p, const RuleSet& r, const Move& m) {
+  Move buf[256];
+  uint8_t paths[256 * MAX_MOVE_PATH];
+  const int n = generate_moves_with_paths(p, r, buf, paths, 256);
+  for (int i = 0; i < n; ++i)
+    if (buf[i].from == m.from && buf[i].to == m.to && buf[i].captured == m.captured)
+      return format_chain(buf[i], paths + size_t(i) * MAX_MOVE_PATH);
+  return move_to_string(m);
+}
+
+bool parse_move(const Position& p, const std::string& s, const RuleSet& r, Move& out) {
+  std::string t;
+  for (char c : s) if (!std::isspace((unsigned char)c)) t.push_back(c);
+  if (t.empty()) return false;
+
+  Move buf[256];
+  uint8_t paths[256 * MAX_MOVE_PATH];
+  const int n = generate_moves_with_paths(p, r, buf, paths, 256);
+  for (int i = 0; i < n; ++i)
+    if (format_chain(buf[i], paths + size_t(i) * MAX_MOVE_PATH) == t) { out = buf[i]; return true; }
   return false;
 }
 

@@ -1,5 +1,7 @@
 #pragma once
+#include <atomic>
 #include <cstdint>
+#include <functional>
 #include <vector>
 #include "core/move.hpp"
 #include "core/position.hpp"
@@ -33,9 +35,20 @@ class Searcher {
   void clear();
   void new_game();
 
+  // Reallocate the transposition table (protocol `setoption name Hash`).
+  void resize_hash(size_t mb) { tt_.resize_mb(mb); }
+
   // Selects the evaluation stage (E1 default). Lets a gauntlet pit E1 vs E0.
   void set_eval_mode(EvalMode m) { eval_mode_ = m; }
   EvalMode eval_mode() const { return eval_mode_; }
+
+  // Cooperative stop from another thread (protocol `stop`). The caller clears
+  // it via clear_stop() *before* starting a search, so a `stop` that races the
+  // start is honored rather than lost.
+  void request_stop() { external_stop_.store(true, std::memory_order_relaxed); }
+  void clear_stop() { external_stop_.store(false, std::memory_order_relaxed); }
+  // Invoked after every completed iterative-deepening iteration (protocol info).
+  void set_info_callback(std::function<void(const SearchInfo&)> cb) { info_cb_ = std::move(cb); }
 
   // `game_hashes` = hashes of the game history *before* the root position.
   SearchInfo go(Position& p, const RuleSet& r, const SearchLimits& limits,
@@ -60,6 +73,8 @@ class Searcher {
 
   uint64_t nodes_ = 0;
   bool stopped_ = false;
+  std::atomic<bool> external_stop_{false};
+  std::function<void(const SearchInfo&)> info_cb_;
   int64_t start_ms_ = 0;
   int64_t soft_ms_ = 0;
   int64_t hard_ms_ = 0;

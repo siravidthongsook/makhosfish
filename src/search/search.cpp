@@ -51,6 +51,7 @@ int64_t Searcher::elapsed_ms() const { return now_ms() - start_ms_; }
 
 bool Searcher::stop_check() {
   if (stopped_) return true;
+  if (external_stop_.load(std::memory_order_relaxed)) { stopped_ = true; return true; }
   if ((nodes_ & 511) == 0) {
     if (limits_.nodes_limit && nodes_ >= limits_.nodes_limit) { stopped_ = true; return true; }
     if (hard_ms_ > 0 && elapsed_ms() >= hard_ms_) { stopped_ = true; return true; }
@@ -252,7 +253,11 @@ SearchInfo Searcher::go(Position& p, const RuleSet& r, const SearchLimits& limit
     info_.score_cp = score;
     info_.seldepth = seldepth_;
     info_.pv.assign(pv_table_[0], pv_table_[0] + pv_len_[0]);
+    info_.nodes = nodes_;
+    info_.time_ms = elapsed_ms();
     delta = 25;
+
+    if (info_cb_) info_cb_(info_);
 
     if (soft_ms_ > 0 && elapsed_ms() >= soft_ms_) break;
     if (limits_.nodes_limit && nodes_ >= limits_.nodes_limit) break;

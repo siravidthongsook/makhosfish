@@ -11,6 +11,22 @@ TEST_CASE("first_move configurable") {
   CHECK(start_position(b).stm == BLACK);
 }
 
+TEST_CASE("start_position respects rows_of_pieces") {
+  const Position t = start_position(thai_rules());
+  CHECK(popcount(t.wm) == 8);
+  CHECK(popcount(t.bm) == 8);
+  CHECK(t.bm == 0x000000FFu);   // rows 0-1
+  CHECK(t.wm == 0xFF000000u);   // rows 6-7
+
+  const RuleSet e = english_rules();
+  const Position pe = start_position(e);
+  CHECK(popcount(pe.wm) == 12);  // 3 rows
+  CHECK(popcount(pe.bm) == 12);
+  CHECK(pe.bm == 0x00000FFFu);
+  CHECK(pe.wm == 0xFFF00000u);
+  CHECK(legal_moves(pe, e).size() == 7);  // published English 8x8 start count
+}
+
 TEST_CASE("force_continue=false permits stopping a capture early") {
   RuleSet r = thai_rules();
   r.force_continue = false;

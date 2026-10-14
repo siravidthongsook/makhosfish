@@ -2,6 +2,7 @@
 #include "core/bitboard.hpp"
 
 #include <algorithm>
+#include <cstring>
 
 namespace mhf {
 namespace {
@@ -11,7 +12,28 @@ struct GenCtx {
   Move* out;
   int   cap;
   int   n = 0;
-  void emit(const Move& m) { if (n < cap) out[n++] = m; }
+
+  // Optional landing-path recording (cold path: notation only). When `pathBuf`
+  // is set, `curPath` holds the chain [from, ...landings...] down the recursion.
+  uint8_t* pathBuf = nullptr;
+  uint8_t  curPath[MAX_MOVE_PATH]{};
+  int      curLen = 0;
+
+  GenCtx(const RuleSet* rs, Move* o, int c) : rules(rs), out(o), cap(c) {}
+
+  void push(int sq) { if (curLen < MAX_MOVE_PATH - 1) curPath[curLen++] = uint8_t(sq); }
+  void pop() { if (curLen > 0) --curLen; }
+  void resetPath(int from) { curPath[0] = uint8_t(from); curLen = 1; }
+
+  void emit(const Move& m) {
+    if (n >= cap) return;
+    if (pathBuf) {
+      uint8_t* dst = pathBuf + size_t(n) * MAX_MOVE_PATH;
+      dst[0] = uint8_t(curLen);
+      for (int i = 0; i < curLen; ++i) dst[1 + i] = curPath[i];
+    }
+    out[n++] = m;
+  }
 };
 
 inline bool onPromoRank(Color us, int sq) {
@@ -85,6 +107,7 @@ void gen_man_caps(GenCtx& g, uint32_t occ, uint32_t enemy, uint32_t enemyKings,
     const uint32_t nCapK = capKingMask | (midIsKing ? bit(mid) : 0u);
     const uint32_t nVis = visited | bit(land);
 
+    g.push(land);
     if (onPromoRank(us, land)) {
       switch (r.midcapture_promo) {
         case MidCapPromo::Stop:
@@ -100,6 +123,7 @@ void gen_man_caps(GenCtx& g, uint32_t occ, uint32_t enemy, uint32_t enemyKings,
     } else {
       gen_man_caps(g, nOcc, nEnemy, nEnemyKings, orig, land, nCap, nCapK, nVis, us);
     }
+    g.pop();
   }
   if (capMask && (!r.force_continue || !extended))
     emitCapture(g, orig, cur, capMask, capKingMask, onPromoRank(us, cur));
@@ -118,10 +142,12 @@ void gen_king_caps(GenCtx& g, uint32_t occ, uint32_t enemy, uint32_t enemyKings,
     const bool midIsKing = (enemyKings & bit(blocker)) != 0;
     uint32_t nOcc = occ, nEnemy = enemy;
     applyJump(r, nOcc, nEnemy, cur, blocker, land);
+    g.push(land);
     gen_king_caps(g, nOcc, nEnemy, enemyKings & ~bit(blocker),
                   orig, land, capMask | bit(blocker),
                   capKingMask | (midIsKing ? bit(blocker) : 0u),
                   visited | bit(land), promoted);
+    g.pop();
   };
 
   for (int d = 0; d < 4; ++d) {
@@ -154,8 +180,7 @@ void gen_king_caps(GenCtx& g, uint32_t occ, uint32_t enemy, uint32_t enemyKings,
     emitCapture(g, orig, cur, capMask, capKingMask, promoted);
 }
 
-int gen_all_captures(const Position& p, const RuleSet& r, Move* out, int cap) {
-  GenCtx g{&r, out, cap};
+int gen_captures(GenCtx& g, const Position& p, const RuleSet& r) {
   const Color us = p.side();
   const Color them = opposite(us);
   const uint32_t occ = p.occupied();
@@ -164,31 +189,46 @@ int gen_all_captures(const Position& p, const RuleSet& r, Move* out, int cap) {
 
   uint32_t m = p.men(us);
   while (m) { int s = lsb(m); m &= m - 1;
+    g.resetPath(s);
     gen_man_caps(g, occ, enemy, enemyKings, s, s, 0, 0, bit(s), us);
   }
   uint32_t k = p.kings(us);
   while (k) { int s = lsb(k); k &= k - 1;
+    g.resetPath(s);
     gen_king_caps(g, occ, enemy, enemyKings, s, s, 0, 0, bit(s), false);
   }
 
   // Majority capture: keep only the sequences taking the most pieces.
   if (r.max_capture_required && g.n > 0) {
     int best = 0;
-    for (int i = 0; i < g.n; ++i) best = std::max(best, int(out[i].n_captured));
+    for (int i = 0; i < g.n; ++i) best = std::max(best, int(g.out[i].n_captured));
     int w = 0;
-    for (int i = 0; i < g.n; ++i)
-      if (int(out[i].n_captured) == best) out[w++] = out[i];
+    for (int i = 0; i < g.n; ++i) {
+      if (int(g.out[i].n_captured) != best) continue;
+      g.out[w] = g.out[i];
+      if (g.pathBuf)
+        std::memcpy(g.pathBuf + size_t(w) * MAX_MOVE_PATH,
+                    g.pathBuf + size_t(i) * MAX_MOVE_PATH, MAX_MOVE_PATH);
+      ++w;
+    }
     g.n = w;
   }
   return g.n;
 }
 
-int gen_all_quiets(const Position& p, const RuleSet& r, Move* out, int cap) {
-  GenCtx g{&r, out, cap};
+int gen_quiets(GenCtx& g, const Position& p, const RuleSet& r) {
   const BoardTables& T = tables();
   const Color us = p.side();
   const uint32_t occ = p.occupied();
   const uint32_t empty = ~occ & 0xFFFFFFFFu;
+
+  auto emitQ = [&](int from, int to, bool promo) {
+    g.curPath[0] = uint8_t(from);
+    g.curPath[1] = uint8_t(to);
+    g.curLen = 2;
+    Move mv; mv.from = uint8_t(from); mv.to = uint8_t(to); mv.promotes = promo;
+    g.emit(mv);
+  };
 
   uint32_t m = p.men(us);
   while (m) { int s = lsb(m); m &= m - 1;
@@ -196,11 +236,7 @@ int gen_all_quiets(const Position& p, const RuleSet& r, Move* out, int cap) {
     for (int di = 0; di < 2; ++di) {
       int d = dirs[di];
       uint32_t sm = T.stepMask[s][d];
-      if (sm && (empty & sm)) {
-        Move mv; mv.from = uint8_t(s); mv.to = uint8_t(lsb(sm));
-        mv.promotes = onPromoRank(us, mv.to);
-        g.emit(mv);
-      }
+      if (sm && (empty & sm)) emitQ(s, lsb(sm), onPromoRank(us, lsb(sm)));
     }
   }
   uint32_t k = p.kings(us);
@@ -211,16 +247,12 @@ int gen_all_quiets(const Position& p, const RuleSet& r, Move* out, int cap) {
         for (;;) {
           int nx = T.neighbor[p2][d];
           if (nx < 0 || !(empty & bit(nx))) break;
-          Move mv; mv.from = uint8_t(s); mv.to = uint8_t(nx);
-          g.emit(mv);
+          emitQ(s, nx, false);
           p2 = nx;
         }
       } else {
         uint32_t sm = T.stepMask[s][d];
-        if (sm && (empty & sm)) {
-          Move mv; mv.from = uint8_t(s); mv.to = uint8_t(lsb(sm));
-          g.emit(mv);
-        }
+        if (sm && (empty & sm)) emitQ(s, lsb(sm), false);
       }
     }
   }
@@ -230,13 +262,24 @@ int gen_all_quiets(const Position& p, const RuleSet& r, Move* out, int cap) {
 } // namespace
 
 int generate_captures(const Position& p, const RuleSet& r, Move* out, int cap) {
-  return gen_all_captures(p, r, out, cap);
+  GenCtx g{&r, out, cap};
+  return gen_captures(g, p, r);
 }
 
 int generate_moves(const Position& p, const RuleSet& r, Move* out, int cap) {
-  int n = gen_all_captures(p, r, out, cap);
+  GenCtx g{&r, out, cap};
+  int n = gen_captures(g, p, r);
   if (n > 0) return n;
-  return gen_all_quiets(p, r, out, cap);
+  return gen_quiets(g, p, r);
+}
+
+int generate_moves_with_paths(const Position& p, const RuleSet& r, Move* out,
+                              uint8_t* paths, int cap) {
+  GenCtx g{&r, out, cap};
+  g.pathBuf = paths;
+  int n = gen_captures(g, p, r);
+  if (n > 0) return n;
+  return gen_quiets(g, p, r);
 }
 
 bool has_legal_move(const Position& p, const RuleSet& r) {

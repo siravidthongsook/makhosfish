@@ -465,7 +465,11 @@ A UCI-like line protocol for GUIs.
   ```
 - **DXP / Hub compatibility (optional):** bridges to existing draughts tooling (lidraughts, py-draughts
   HubEngine) for cross-testing.
-- **CLI:** `makhosfish perft <depth>`, `makhosfish bench [<depth> [e0|e1]]`, `makhosfish go [<pos> [<depth>|movetime:<ms>] [e0|e1]]`, `makhosfish play`, `makhosfish selfplay`, `makhosfish gauntlet <games> <depth> [aMode] [bMode] [opening]`, `makhosfish tune`.
+- **CLI:** `makhosfish tci` (TCI v1 on stdin/stdout), `makhosfish pdn <file.pdn> [--fens]`,
+  `makhosfish play [<depth> [e0|e1]]`, `makhosfish perft <depth>`,
+  `makhosfish bench [<depth> [e0|e1]]`,
+  `makhosfish go [<pos> [<depth>|movetime:<ms>] [e0|e1]]`, `makhosfish selfplay`,
+  `makhosfish gauntlet <games> <depth> [aMode] [bMode] [opening]`, `makhosfish tune`.
 
 ---
 
@@ -569,6 +573,17 @@ pattern-window shapes — all decided by benchmark evidence, not fiat.
   ≈ 48.7% (fair). E1 costs ≈12% nps vs E0 (3.2M vs 3.6M midgame) — accepted for the strength gain.
   Perft(9)=114 530 830 unchanged; 45 cases green; ASan/UBSan clean.
 - **M3 — Protocol + CLI + PDN/FEN.** Exit: drivable from a GUI; games loadable.
+  **Status: DONE.** Full multi-jump notation (`32x23x14`, every landing square) recorded by
+  movegen and round-tripped by `parse_move`; TCI v1 server (`makhosfish tci`) with handshake,
+  `isready`, `setoption` (Hash/Eval/RuleSet), `position startpos|fen ... moves ...`, `go`
+  (depth/nodes/movetime/wtime/btime/winc/binc/infinite), streamed `info`, `bestmove`, `stop`,
+  `quit`, `perft`; `go` runs on a worker thread so `stop`/`isready` stay live (cooperative
+  `Searcher::request_stop`). PDN parse/replay/format (`protocol/pdn.{hpp,cpp}`) ignoring
+  comments/NAGs/variations, plus CLI `makhosfish pdn <file> [--fens]` and an interactive
+  `makhosfish play`. `start_position` now honors `rows_of_pieces`, so variant starts are correct
+  (English start perft 7/49/302/1469 matches the published counts). 62 cases green; ASan/UBSan
+  clean; Thai perft(9)=114 530 830 unchanged; gauntlet E1-vs-E0 unchanged (~+80 Elo). Known
+  follow-up: `Threads` is accepted but ignored (Lazy SMP is M6); DXP/Hub bridge is not built.
 - **M4 — Pattern eval (E2) + tuning.** Self-play datagen + weight tuning. Exit: clearly beats M2.
 - **M5 — Endgame bitbases (≤6, then ≤8).** Exit: perfect play in small endgames.
 - **M6 — Opening book + parallel search (Lazy SMP).** Exit: strong, fast, tournament-ready.
