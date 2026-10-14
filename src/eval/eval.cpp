@@ -1,6 +1,7 @@
 #include "eval/eval.hpp"
 #include "core/bitboard.hpp"
 #include "core/types.hpp"
+#include "eval/pattern.hpp"
 
 namespace mhf {
 namespace {
@@ -140,8 +141,12 @@ EvalDetail eval_detail(const Position& p, const RuleSet& r, EvalMode mode) {
   const bool wHasKing = p.wk != 0, bHasKing = p.bk != 0;
   if (wHasKing != bHasKing) d.first_king = wHasKing ? FIRST_KING : -FIRST_KING;
 
+  // Stage E2: add the learned pattern-window sum (zero when no weights loaded,
+  // in which case E2 is bit-identical to E1).
+  if (mode == EvalMode::E2) d.pattern = active_pattern().score(p);
+
   d.white_minus_black = d.material + d.pst + d.mobility + d.captures +
-                        d.structure + d.first_king + d.precrown;
+                        d.structure + d.first_king + d.precrown + d.pattern;
   return d;
 }
 

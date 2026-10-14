@@ -13,6 +13,7 @@
 #include "core/perft.hpp"
 #include "core/position.hpp"
 #include "eval/eval.hpp"
+#include "eval/pattern.hpp"
 #include "protocol/fen.hpp"
 #include "protocol/pdn.hpp"
 #include "protocol/tci.hpp"
@@ -53,9 +54,17 @@ std::string render_board(const Position& p) {
 }
 
 EvalMode parse_eval(const std::string& s) {
-  return (s == "e0" || s == "E0") ? EvalMode::E0 : EvalMode::E1;
+  if (s == "e0" || s == "E0") return EvalMode::E0;
+  if (s == "e2" || s == "E2") return EvalMode::E2;
+  return EvalMode::E1;
 }
-const char* eval_name(EvalMode m) { return m == EvalMode::E0 ? "e0" : "e1"; }
+const char* eval_name(EvalMode m) {
+  switch (m) {
+    case EvalMode::E0: return "e0";
+    case EvalMode::E2: return "e2";
+    default: return "e1";
+  }
+}
 
 int cmd_perft(int argc, char** argv, int base) {
   RuleSet r = thai_rules();
@@ -332,6 +341,21 @@ int cmd_play(int argc, char** argv) {
 } // namespace
 
 int main(int argc, char** argv) {
+  // Global option (accepted anywhere): `--pattern <file>` loads E2 weights.
+  std::vector<char*> args;
+  args.reserve(argc);
+  for (int i = 0; i < argc; ++i) {
+    if (std::string(argv[i]) == "--pattern" && i + 1 < argc) {
+      if (!active_pattern().load(argv[i + 1]))
+        std::fprintf(stderr, "warning: cannot load pattern file %s\n", argv[i + 1]);
+      ++i;
+      continue;
+    }
+    args.push_back(argv[i]);
+  }
+  argc = static_cast<int>(args.size());
+  argv = args.data();
+
   const std::string cmd = (argc >= 2) ? argv[1] : "";
   if (cmd == "tci") return cmd_tci();
   if (cmd == "pdn") return cmd_pdn(argc, argv);

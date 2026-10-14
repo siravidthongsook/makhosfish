@@ -38,6 +38,7 @@ add_library(makhosfish_core STATIC
   src/protocol/pdn.cpp
   src/protocol/tci.cpp
   src/eval/eval.cpp
+  src/eval/pattern.cpp
   src/search/tt.cpp
   src/search/search.cpp
 )
@@ -56,6 +57,12 @@ target_link_libraries(makhosfish_perft PRIVATE makhosfish_core)
 add_executable(makhosfish_bench tools/bench.cpp)
 target_link_libraries(makhosfish_bench PRIVATE makhosfish_core)
 
+add_executable(makhosfish_datagen tools/datagen.cpp)
+target_link_libraries(makhosfish_datagen PRIVATE makhosfish_core)
+
+add_executable(makhosfish_tune tools/tune.cpp)
+target_link_libraries(makhosfish_tune PRIVATE makhosfish_core)
+
 # --- tests --------------------------------------------------------------
 enable_testing()
 
@@ -70,6 +77,7 @@ add_executable(makhosfish_tests
   tests/test_variants.cpp
   tests/test_search.cpp
   tests/test_eval.cpp
+  tests/test_pattern.cpp
   tests/test_notation.cpp
   tests/test_pdn.cpp
   tests/test_tci.cpp

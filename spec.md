@@ -378,6 +378,19 @@ structure, first-king bonus, king-vs-men imbalance.
 - Implementation: chunk tables for O(#windows) lookups (py-draughts "TurboEngine" folds PSTs
   into 9×128-entry chunk tables for O(9) eval — same idea).
 
+**E2 status: DONE (M4).** `src/eval/pattern.{hpp,cpp}`. Six overlapping 4-row×2-file windows
+(4×4 dark-square blocks) in rot180 mirror pairs; each window's 8 cells encoded base-5
+(empty / own man / own king / opp man / opp king) from the scoring side's view. Weights are
+`int16` per `(window, phase, code)` with 2 phases (midgame / ≤8 pieces); the score is
+`Σ_w T[w][ph][code(p,w,WHITE)] − T[PAIR[w]][ph][code(p,w,BLACK)]`. Reading black from the
+**paired** window makes the score *exactly* antisymmetric under the colour mirror for **any**
+weights (proved + tested), so the engine can never take a colour bias and the tuner needs no
+symmetry constraints. `E2 = E1 + pattern`, so unloaded/zero weights are bit-identical to E1.
+Weights live in `data/patterns/thai_e2.mhpw` (`.mhpw`, §20.6), loaded via CLI `--pattern` or
+TCI `setoption name PatternFile`; E2 is the default stage (degrades to E1 without a file).
+Trained by `tools/datagen` (self-play → `<fen> <result>`) + `tools/tune` (Texel-style
+logistic regression / SGD on `sigmoid(ln10·eval_stm/400)`).
+
 **Stage E3 — Shallow neural net / NNUE (optional upgrade).**
 A small network (Kingsrow is a "very shallow NN" over pattern indices; modern path is NNUE —
 incrementally-updated quantized eval). Ship only if it clearly beats E2 in self-play.
@@ -465,11 +478,14 @@ A UCI-like line protocol for GUIs.
   ```
 - **DXP / Hub compatibility (optional):** bridges to existing draughts tooling (lidraughts, py-draughts
   HubEngine) for cross-testing.
-- **CLI:** `makhosfish tci` (TCI v1 on stdin/stdout), `makhosfish pdn <file.pdn> [--fens]`,
-  `makhosfish play [<depth> [e0|e1]]`, `makhosfish perft <depth>`,
-  `makhosfish bench [<depth> [e0|e1]]`,
-  `makhosfish go [<pos> [<depth>|movetime:<ms>] [e0|e1]]`, `makhosfish selfplay`,
-  `makhosfish gauntlet <games> <depth> [aMode] [bMode] [opening]`, `makhosfish tune`.
+- **CLI:** `makhosfish [--pattern <file.mhpw>] <cmd>`; `cmd` ∈
+  `tci` (TCI v1 on stdin/stdout), `pdn <file.pdn> [--fens]`, `play [<depth> [e0|e1|e2]]`,
+  `perft <depth>`, `bench [<depth> [e0|e1|e2]]`, `go [<pos> [<depth>|movetime:<ms>] [e0|e1|e2]]`,
+  `selfplay`, `gauntlet <games> <depth> [aMode] [bMode] [opening]` (aMode/bMode ∈ e0/e1/e2).
+  Eval stages: `e0` material+PST, `e1` +hand features, `e2` +patterns (default; needs
+  `--pattern`/`setoption name PatternFile`).
+- **Tools:** `makhosfish_datagen <games> <depth> <opening> <out> [seed] [e0|e1] [max_plies]`,
+  `makhosfish_tune <data> <out.mhpw> [epochs] [lr] [init.mhpw] [max_samples]`.
 
 ---
 
@@ -585,6 +601,16 @@ pattern-window shapes — all decided by benchmark evidence, not fiat.
   clean; Thai perft(9)=114 530 830 unchanged; gauntlet E1-vs-E0 unchanged (~+80 Elo). Known
   follow-up: `Threads` is accepted but ignored (Lazy SMP is M6); DXP/Hub bridge is not built.
 - **M4 — Pattern eval (E2) + tuning.** Self-play datagen + weight tuning. Exit: clearly beats M2.
+  **Status: DONE.** `src/eval/pattern.{hpp,cpp}` (six overlapping 4×4 dark-square windows in
+  rot180 mirror pairs, base-5 codes, 2 phases, `int16` weights; two-sided score with the
+  **paired-window** black term is exactly colour-antisymmetric for any weights). `tools/datagen`
+  generated **9.71M positions** from **120k** self-play games (depth 6, opening 6); `tools/tune`
+  (Texel-style SGD) cut validation loss **0.6644 → 0.6303**. Shipped weights
+  `data/patterns/thai_e2.mhpw`; E2 is now the default stage. Exit gate (`makhosfish gauntlet`,
+  alternating colours, random openings): **E2 vs E1 = +102 Elo over 1000 games @ depth 6**
+  and **+128 Elo over 300 games @ depth 9**; E2-vs-E2 and E1-vs-E1 controls ≈ 50% (fair).
+  Cost ≈18% nps (12 table lookups/eval). 70 cases green (incl. rot180-closure, antisymmetry,
+  zero-weight==E1, `.mhpw` round-trip); ASan/UBSan clean; Thai perft(9)=114 530 830 unchanged.
 - **M5 — Endgame bitbases (≤6, then ≤8).** Exit: perfect play in small endgames.
 - **M6 — Opening book + parallel search (Lazy SMP).** Exit: strong, fast, tournament-ready.
 - **M7 — NNUE (E3) if it wins + extend DBs toward full solve.** Exit: near/at solved.
@@ -633,7 +659,8 @@ Variant validation
 - [ ] Thai rules exact; all §2.2 decisions encoded, tested, documented.
 - [ ] Perft passes on frozen fixtures (Thai + cross-variant).
 - [ ] PVS search reaches target NPS/depth with TT, ordering, LMR, forward pruning.
-- [ ] Pattern eval trained by self-play beats the PST baseline in an Elo gauntlet.
+- [x] Pattern eval trained by self-play beats the hand-tuned baseline in an Elo gauntlet
+      (E2 vs E1: +102 Elo @ depth 6, +128 Elo @ depth 9; spec §16 M4).
 - [ ] Endgame bitbases ≤8 pieces generated and queried correctly.
 - [ ] Opening book generated and selectable.
 - [ ] TCI protocol + CLI + PDN/FEN working end-to-end.
@@ -670,7 +697,8 @@ thaichecker-engine/
 Targets:
 - `makhosfish_core` — static lib (core + search + eval + book + egdb + protocol).
 - `makhosfish` — protocol/CLI executable.
-- `makhosfish_tools` — `perft`, `datagen`, `tune`, `retrograde_main`.
+- `makhosfish_perft`, `makhosfish_bench`, `makhosfish_datagen`, `makhosfish_tune` —
+  tools (retrograde_main → M5).
 - `makhosfish_tests` — registered with CTest.
 
 Options: `MAKHOS_NATIVE=ON` (`-march=native`), `MAKHOS_SANITIZE=OFF` (`-fsanitize=address,undefined`),

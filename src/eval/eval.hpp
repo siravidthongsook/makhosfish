@@ -6,9 +6,10 @@
 
 namespace mhf {
 
-// Evaluation stages (spec §8): E0 = material + PST; E1 adds hand features.
-// The mode is a runtime switch so E1 can be A/B-tested against E0 in a gauntlet.
-enum class EvalMode : uint8_t { E0 = 0, E1 = 1 };
+// Evaluation stages (spec §8): E0 = material + PST; E1 adds hand features;
+// E2 adds learned pattern terms (eval/pattern.hpp) on top of E1. The mode is a
+// runtime switch so any stage can be A/B-tested against another in a gauntlet.
+enum class EvalMode : uint8_t { E0 = 0, E1 = 1, E2 = 2 };
 
 inline constexpr int MAN_VALUE = 100;
 inline constexpr int KING_VALUE = 300;
@@ -32,6 +33,7 @@ struct EvalDetail {
   int structure = 0;
   int first_king = 0;
   int precrown = 0;
+  int pattern = 0;   // E2 only: learned pattern-window contribution
   int white_minus_black = 0;
 };
 

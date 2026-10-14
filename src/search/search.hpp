@@ -38,7 +38,8 @@ class Searcher {
   // Reallocate the transposition table (protocol `setoption name Hash`).
   void resize_hash(size_t mb) { tt_.resize_mb(mb); }
 
-  // Selects the evaluation stage (E1 default). Lets a gauntlet pit E1 vs E0.
+  // Selects the evaluation stage (E2 default; equals E1 until pattern weights
+  // are loaded). Lets a gauntlet pit any two stages head-to-head.
   void set_eval_mode(EvalMode m) { eval_mode_ = m; }
   EvalMode eval_mode() const { return eval_mode_; }
 
@@ -69,7 +70,7 @@ class Searcher {
   const RuleSet* rules_ = nullptr;
   SearchInfo info_;
   SearchLimits limits_;
-  EvalMode eval_mode_ = EvalMode::E1;
+  EvalMode eval_mode_ = EvalMode::E2;
 
   uint64_t nodes_ = 0;
   bool stopped_ = false;

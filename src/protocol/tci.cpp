@@ -1,5 +1,6 @@
 #include "protocol/tci.hpp"
 #include "core/perft.hpp"
+#include "eval/pattern.hpp"
 #include "protocol/fen.hpp"
 
 #include <algorithm>
@@ -69,7 +70,8 @@ void TciSession::handle(const std::string& line) {
     out_line("id name MakHosFish 0.1");
     out_line("id author MakHosFish");
     out_line("option name Hash type spin default 128 min 1 max 32768");
-    out_line("option name Eval type combo default e1 var e0 var e1");
+    out_line("option name Eval type combo default e2 var e0 var e1 var e2");
+    out_line("option name PatternFile type string default <empty>");
     out_line("option name RuleSet type combo default thai var thai var english var russian var brazilian");
     out_line(cmd == "uci" ? "uciok" : "tciok");
     return;
@@ -96,7 +98,12 @@ void TciSession::handle(const std::string& line) {
       searcher_.resize_hash(size_t(mb));
       searcher_.clear();
     } else if (name == "Eval") {
-      searcher_.set_eval_mode(value == "e0" ? EvalMode::E0 : EvalMode::E1);
+      if (value == "e0") searcher_.set_eval_mode(EvalMode::E0);
+      else if (value == "e2") searcher_.set_eval_mode(EvalMode::E2);
+      else searcher_.set_eval_mode(EvalMode::E1);
+    } else if (name == "PatternFile") {
+      if (!value.empty() && !active_pattern().load(value))
+        out_line("info string cannot load pattern file: " + value);
     } else if (name == "RuleSet") {
       if (value == "english") rules_ = english_rules();
       else if (value == "russian") rules_ = russian_rules();
