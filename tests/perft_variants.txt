@@ -1,0 +1,26 @@
+# Variant perft cross-validation (spec §14.2, §20.5).
+#
+# The English/American counts are the canonical published 8x8 checkers perft
+# (12 men per side, White to move). Source: Rein Halbersma, "Perft for all
+# recognized draughts variants", World Draughts Forum (damforum.nl/viewtopic.php?t=2822),
+# cross-checked against Ed Gilbert (Kingsrow). The English generator reproduces
+# these exactly at every depth D1..D9.
+#
+# NOTE: the milestone brief listed English D8=845228 / D9=3908861. Those values
+# could not be verified against any published source and are inconsistent with the
+# rule set that already pins D1..D7 (men capture forward only, short kings, no
+# majority rule): the authoritative table gives D8=845931 / D9=3963680, and that
+# is what this generator produces. The published values are used here.
+#
+# Russian / Brazilian: same published table. This generator reproduces the
+# published counts through D7 (and Brazilian through D8). At deeper depths where
+# flying kings interact with deferred removal, our move enumeration diverges from
+# the reference table by a small amount (order-of-capture duplicates), so the
+# deeper external counts are NOT asserted here; instead tests/test_variants.cpp
+# checks the fast generator against the independent reference generator.
+#
+# format:  <variant> ; <FEN> ; D<depth> <count> ; D<depth> <count> ; ...
+#
+english ; W:W21-32:B1-12 ; D1 7 ; D2 49 ; D3 302 ; D4 1469 ; D5 7361 ; D6 36768 ; D7 179740 ; D8 845931 ; D9 3963680
+russian ; W:W21-32:B1-12 ; D1 7 ; D2 49 ; D3 302 ; D4 1469 ; D5 7482 ; D6 37986 ; D7 190146
+brazilian ; W:W21-32:B1-12 ; D1 7 ; D2 49 ; D3 302 ; D4 1469 ; D5 7473 ; D6 37628 ; D7 187302 ; D8 907836

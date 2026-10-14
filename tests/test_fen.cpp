@@ -40,6 +40,9 @@ TEST_CASE("rule50 field round-trips") {
 TEST_CASE("bad FEN rejected") {
   RuleSet r = thai_rules();
   Position p;
-  CHECK_FALSE(parse_fen("X:W25-32:B1-8", p, r));
-  CHECK_FALSE(parse_fen("W:W25-32", p, r));
+  CHECK_FALSE(parse_fen("X:W25-32:B1-8", p, r));        // bad side to move
+  CHECK_FALSE(parse_fen("W:W25-32", p, r));             // missing black list
+  CHECK_FALSE(parse_fen("W:WK28,B21:B9,K22", p, r));    // stray color letter mid-list
+  CHECK_FALSE(parse_fen("W:W25-32:B1-40", p, r));       // square out of range
+  CHECK_FALSE(parse_fen("W:W25-32:B1,,8", p, r));       // empty item
 }

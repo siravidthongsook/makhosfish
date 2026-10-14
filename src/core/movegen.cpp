@@ -1,6 +1,8 @@
 #include "core/movegen.hpp"
 #include "core/bitboard.hpp"
 
+#include <algorithm>
+
 namespace mhf {
 namespace {
 
@@ -23,14 +25,51 @@ inline void forwardDirs(Color us, int dirs[2]) {
   else             { dirs[0] = SW; dirs[1] = SE; }
 }
 
+void emitCapture(GenCtx& g, int orig, int to, uint32_t cap, uint32_t capK, bool promotes) {
+  Move m;
+  m.from = uint8_t(orig);
+  m.to = uint8_t(to);
+  m.captured = cap;
+  m.capturedKings = capK;
+  m.n_captured = uint8_t(popcount(cap));
+  m.promotes = promotes;
+  g.emit(m);
+}
+
+// Apply one jump of `blocker` from `cur`, landing on `land`.
+// immediate removal: the blocker leaves the board, which can open a later jump.
+// deferred removal (International/Russian/Brazilian): the blocker stays on the
+// board until the move ends, so it blocks and cannot be jumped or landed on.
+inline void applyJump(const RuleSet& r, uint32_t& occ, uint32_t& enemy,
+                      int cur, int blocker, int land) {
+  if (r.immediate_removal) occ = (occ & ~(bit(cur) | bit(blocker))) | bit(land);
+  else                     occ = (occ & ~bit(cur)) | bit(land);  // blocker remains
+  enemy &= ~bit(blocker);
+}
+
+void gen_king_caps(GenCtx& g, uint32_t occ, uint32_t enemy, uint32_t enemyKings,
+                   int orig, int cur, uint32_t capMask, uint32_t capKingMask,
+                   uint32_t visited, bool promoted);
+
+// Man capture chains. `promoted` is always false here (a promoted piece is a
+// king), so the move result is a king only if it ends on the promotion rank.
 void gen_man_caps(GenCtx& g, uint32_t occ, uint32_t enemy, uint32_t enemyKings,
                   int orig, int cur, uint32_t capMask, uint32_t capKingMask,
                   uint32_t visited, Color us) {
   const BoardTables& T = tables();
+  const RuleSet& r = *g.rules;
   bool extended = false;
-  int dirs[2];
+
+  int dirs[4];
   forwardDirs(us, dirs);
-  for (int di = 0; di < 2; ++di) {
+  int nd = 2;
+  if (r.men_capture_backward) {
+    dirs[2] = (us == WHITE) ? SW : NW;
+    dirs[3] = (us == WHITE) ? SE : NE;
+    nd = 4;
+  }
+
+  for (int di = 0; di < nd; ++di) {
     int d = dirs[di];
     int mid = T.neighbor[cur][d];
     if (mid < 0 || !(enemy & bit(mid))) continue;
@@ -39,39 +78,50 @@ void gen_man_caps(GenCtx& g, uint32_t occ, uint32_t enemy, uint32_t enemyKings,
 
     extended = true;
     const bool midIsKing = (enemyKings & bit(mid)) != 0;
-    uint32_t nOcc = (occ & ~(bit(cur) | bit(mid))) | bit(land);
-    gen_man_caps(g, nOcc, enemy & ~bit(mid), enemyKings & ~bit(mid),
-                 orig, land, capMask | bit(mid),
-                 capKingMask | (midIsKing ? bit(mid) : 0u),
-                 visited | bit(land), us);
+    uint32_t nOcc = occ, nEnemy = enemy;
+    applyJump(r, nOcc, nEnemy, cur, mid, land);
+    const uint32_t nEnemyKings = enemyKings & ~bit(mid);
+    const uint32_t nCap = capMask | bit(mid);
+    const uint32_t nCapK = capKingMask | (midIsKing ? bit(mid) : 0u);
+    const uint32_t nVis = visited | bit(land);
+
+    if (onPromoRank(us, land)) {
+      switch (r.midcapture_promo) {
+        case MidCapPromo::Stop:
+          emitCapture(g, orig, land, nCap, nCapK, true);  // crowned; move ends here
+          break;
+        case MidCapPromo::ContinueMan:
+          gen_man_caps(g, nOcc, nEnemy, nEnemyKings, orig, land, nCap, nCapK, nVis, us);
+          break;
+        case MidCapPromo::PromoteAndContinue:
+          gen_king_caps(g, nOcc, nEnemy, nEnemyKings, orig, land, nCap, nCapK, nVis, true);
+          break;
+      }
+    } else {
+      gen_man_caps(g, nOcc, nEnemy, nEnemyKings, orig, land, nCap, nCapK, nVis, us);
+    }
   }
-  if (capMask && (!g.rules->force_continue || !extended)) {
-    Move m;
-    m.from = uint8_t(orig);
-    m.to = uint8_t(cur);
-    m.captured = capMask;
-    m.capturedKings = capKingMask;
-    m.n_captured = uint8_t(popcount(capMask));
-    m.promotes = onPromoRank(us, cur);
-    g.emit(m);
-  }
+  if (capMask && (!r.force_continue || !extended))
+    emitCapture(g, orig, cur, capMask, capKingMask, onPromoRank(us, cur));
 }
 
 void gen_king_caps(GenCtx& g, uint32_t occ, uint32_t enemy, uint32_t enemyKings,
                    int orig, int cur, uint32_t capMask, uint32_t capKingMask,
-                   uint32_t visited) {
+                   uint32_t visited, bool promoted) {
   const BoardTables& T = tables();
-  const bool flying = g.rules->flying_kings;
+  const RuleSet& r = *g.rules;
+  const bool flying = r.flying_kings;
   bool extended = false;
 
   auto captureWith = [&](int blocker, int land) {
     extended = true;
     const bool midIsKing = (enemyKings & bit(blocker)) != 0;
-    uint32_t nOcc = (occ & ~(bit(cur) | bit(blocker))) | bit(land);
-    gen_king_caps(g, nOcc, enemy & ~bit(blocker), enemyKings & ~bit(blocker),
+    uint32_t nOcc = occ, nEnemy = enemy;
+    applyJump(r, nOcc, nEnemy, cur, blocker, land);
+    gen_king_caps(g, nOcc, nEnemy, enemyKings & ~bit(blocker),
                   orig, land, capMask | bit(blocker),
                   capKingMask | (midIsKing ? bit(blocker) : 0u),
-                  visited | bit(land));
+                  visited | bit(land), promoted);
   };
 
   for (int d = 0; d < 4; ++d) {
@@ -85,7 +135,7 @@ void gen_king_caps(GenCtx& g, uint32_t occ, uint32_t enemy, uint32_t enemyKings,
     if (blocker < 0 || !(enemy & bit(blocker))) continue;
     if (!flying && T.neighbor[cur][d] != blocker) continue;  // non-flying: adjacent only
 
-    if (g.rules->king_must_land_immediately_behind) {
+    if (r.king_must_land_immediately_behind) {
       int land = T.neighbor[blocker][d];
       if (land >= 0 && !(occ & bit(land)) && !(visited & bit(land)))
         captureWith(blocker, land);
@@ -100,16 +150,8 @@ void gen_king_caps(GenCtx& g, uint32_t occ, uint32_t enemy, uint32_t enemyKings,
       }
     }
   }
-  if (capMask && (!g.rules->force_continue || !extended)) {
-    Move m;
-    m.from = uint8_t(orig);
-    m.to = uint8_t(cur);
-    m.captured = capMask;
-    m.capturedKings = capKingMask;
-    m.n_captured = uint8_t(popcount(capMask));
-    m.promotes = false;   // kings never promote
-    g.emit(m);
-  }
+  if (capMask && (!r.force_continue || !extended))
+    emitCapture(g, orig, cur, capMask, capKingMask, promoted);
 }
 
 int gen_all_captures(const Position& p, const RuleSet& r, Move* out, int cap) {
@@ -126,7 +168,17 @@ int gen_all_captures(const Position& p, const RuleSet& r, Move* out, int cap) {
   }
   uint32_t k = p.kings(us);
   while (k) { int s = lsb(k); k &= k - 1;
-    gen_king_caps(g, occ, enemy, enemyKings, s, s, 0, 0, bit(s));
+    gen_king_caps(g, occ, enemy, enemyKings, s, s, 0, 0, bit(s), false);
+  }
+
+  // Majority capture: keep only the sequences taking the most pieces.
+  if (r.max_capture_required && g.n > 0) {
+    int best = 0;
+    for (int i = 0; i < g.n; ++i) best = std::max(best, int(out[i].n_captured));
+    int w = 0;
+    for (int i = 0; i < g.n; ++i)
+      if (int(out[i].n_captured) == best) out[w++] = out[i];
+    g.n = w;
   }
   return g.n;
 }

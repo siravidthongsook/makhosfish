@@ -4,6 +4,25 @@
 > Status: Draft v0.1 — research-backed, implementation-ready.
 > Owner: Boss.
 
+> ### PRIMARY TARGET: **makhos (Thai checkers)** — 8×8, 16 pieces (8 men/side).
+> **This is the product.** Everything else in this spec serves Thai checkers.
+>
+> Other draughts variants (International 10×10, English/American, Russian, Brazilian, Turkish,
+> …) are **never a goal in themselves**. They exist *only* as a **cross-check harness** to
+> validate the generic move generator against **published perft counts** (§20.5) — a
+> third-party, independently-published number agreeing with ours is evidence that the *generic*
+> machinery is right, which in turn de-risks the Thai rule deltas.
+>
+> Rules of engagement for any agent working on this repo:
+> 1. **Thai is always the default `RuleSet`** (`thai_rules()`); Thai behavior is frozen once a
+>    perft fixture pins it.
+> 2. **Never change Thai behavior to accommodate a variant.** If they conflict, Thai wins.
+> 3. Variant support is optional and additive; if a variant's published numbers cannot be
+>    reproduced or verified, **drop the variant** rather than bend Thai rules or the generator.
+> 4. The **only** ground truth for Thai is the frozen Thai perft fixtures (§20.4) plus
+>    fast==reference agreement — *not* another variant's numbers (those are for a different game).
+> 5. 10×10 International is **out of scope** for the 32-bit representation (§5.1); do not attempt it.
+
 ---
 
 ## 0. One-paragraph vision
@@ -30,9 +49,11 @@ standalone CLI plus a UCI-like protocol so any GUI can drive it, with a correctn
   *strongly solve* the game if feasible (it is a small 8×8 game — see §12).
 - G4. **Portability.** Same core builds for CLI, protocol server, and library; deterministic;
   no hidden global state in the hot path.
-- G5. **Extensibility.** Rule set is configurable so the core can also play closely related
-  variants (International 10×10, Russian, English, Brazilian, Turkish-8×8) — this doubles as a
-  validation harness against published perft numbers.
+- G5. **Extensibility (secondary).** Rule set is configurable so the core *can* also play closely
+  related 8×8 variants (Russian, English/American, Brazilian, Turkish-8×8). This exists **only**
+  as a validation harness against published perft numbers (§20.5) — it is **not** a product goal.
+  Thai (makhos) is always the primary target and the default rule set (see the callout at the top).
+  10×10 International is out of scope (does not fit the 32-bit representation).
 
 ### Non-goals (v1)
 - NG1. GUI. (Protocol + CLI only; GUIs consume the protocol.)
@@ -412,12 +433,14 @@ train the NN. Iterate until strength plateaus.
 <stm>:W<whitesqlist>:B<blacksqlist>[:<rule50>]
 ```
 - `<stm>` ∈ {`W`,`B`}.
-- Each piece list: comma-separated **external** square numbers (1..32); a king is prefixed `K`.
-- Ranges may be hyphenated for compactness.
+- Each piece list is prefixed **once** by its color letter (`W` or `B`), then comma-separated
+  **external** square numbers (1..32); a king is prefixed `K`; ranges may be hyphenated.
+- A color letter anywhere other than the list's very first character is **invalid** (a common
+  typo, e.g. `W:WK28,B21:...`); `parse_fen` rejects it rather than silently dropping it.
 - Examples (external 1..32 numbering):
   ```text
   start   W:W25-32:B1-8          (also `position startpos`)
-  kings   B:WK5,BM3-7:W24-30,K31
+  kings   B:WK5,3-7:B24-30,K31
   ```
 This is a superset of the widely-used draughts FEN, adapted to 8-piece makhos setup.
 
@@ -525,9 +548,17 @@ pattern-window shapes — all decided by benchmark evidence, not fiat.
 ## 16. Roadmap / milestones
 
 - **M0 — Skeleton & rules.** Position struct, move gen (quiet + capture), make/unmake, perft.
-  Exit: perft passes on Thai fixtures + International/English cross-check.
+  Exit: perft passes on Thai fixtures + cross-variant check.
+  **Status: DONE** (`0237fac`). Thai perft(9)=114 530 830; fast==reference; ASan/UBSan clean.
+- **M0.5 — Cross-variant validation (support only, not a Thai feature).** Generic `RuleSet`
+  flags (backward capture, max-capture, deferred removal, mid-capture promotion) + 8×8
+  English/Russian/Brazilian configs validated against published perft counts (§20.5).
+  **Status: DONE.** English matches published 8×8 counts; variants are cross-checks only,
+  never a substitute for Thai fixtures.
 - **M1 — Search.** PVS + TT + iterative deepening + basic move ordering + time management.
   Exit: plays legally, beats random + a simple 1-ply engine.
+  **Status: DONE.** `makhosfish go|bench|selfplay`; beats random 100% (40/40 @ depth 6);
+  midgame bench ≈3.6 M nps (below the §13 10 M target — optimization is a later milestone).
 - **M2 — Eval E0/E1.** Material + PST + hand features. Exit: beats casual mobile makhos app.
 - **M3 — Protocol + CLI + PDN/FEN.** Exit: drivable from a GUI; games loadable.
 - **M4 — Pattern eval (E2) + tuning.** Self-play datagen + weight tuning. Exit: clearly beats M2.
@@ -685,6 +716,11 @@ Reference counts are generated by **both** the fast generator and the slow indep
    perft counts by switching the RuleSet. Matching a known variant is strong evidence the Thai
    path (a RuleSet delta from it) is correct.
 4. Only then freeze Thai counts as CI fixtures.
+5. **Thai is the primary target.** Steps 3 (variant cross-check) is *supporting evidence only*:
+   a published International/Russian/English count is for a *different game* and can never
+   override a Thai fixture. If a variant config cannot reproduce its published numbers, drop or
+   downgrade that variant — do not alter Thai rules or Thai counts. 8×8 variants only; 10×10
+   International is out of scope for the 32-bit board representation (§5.1).
 
 ### 20.6 Data file formats (frozen headers; versioned)
 - **Pattern weights** `.mhpw`: magic `MHPW`, `u16 version`, `u16 n_windows`, window shape,

@@ -1,5 +1,6 @@
 #include "reference_movegen.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
 
@@ -47,28 +48,58 @@ Board to_board(const Position& p) {
   return b;
 }
 
-void ref_man_caps(Board bd, int cur, int orig, uint32_t cap, uint32_t capK,
+// `dead` marks squares holding a piece already jumped this turn; with deferred
+// removal such a piece stays on the board (blocking, not capturable, not landable).
+void ref_king_caps(Board bd, uint32_t dead, int cur, int orig, uint32_t cap, uint32_t capK,
+                   uint32_t visited, int color, const RuleSet& rules, bool promoted,
+                   std::vector<Move>& out);
+
+void ref_man_caps(Board bd, uint32_t dead, int cur, int orig, uint32_t cap, uint32_t capK,
                   uint32_t visited, int color, const RuleSet& rules,
                   std::vector<Move>& out) {
   bool ext = false;
   const int fwd = (color == WHITE) ? -1 : +1;
-  for (int s = 0; s < 2; ++s) {
-    int row, col; idxToRc(cur, row, col);
-    int dr = fwd, dc = (s == 0 ? -1 : +1);
-    int mid = rcToIdx(row + dr, col + dc);
-    if (mid < 0 || !isEnemy(bd[mid], color)) continue;
-    int land = rcToIdx(row + 2 * dr, col + 2 * dc);
-    if (land < 0 || bd[land] != EMPTY) continue;
-    if (visited & bit(land)) continue;
+  const int nDir = rules.men_capture_backward ? 4 : 2;
+  const int drs[4] = {fwd, fwd, -fwd, -fwd};
+  const int dcs[4] = {-1, +1, -1, +1};
+  int row, col; idxToRc(cur, row, col);
+
+  for (int s = 0; s < nDir; ++s) {
+    int mid = rcToIdx(row + drs[s], col + dcs[s]);
+    if (mid < 0 || bd[mid] == EMPTY || !isEnemy(bd[mid], color) || (dead & bit(mid))) continue;
+    int land = rcToIdx(row + 2 * drs[s], col + 2 * dcs[s]);
+    if (land < 0 || bd[land] != EMPTY || (visited & bit(land))) continue;
 
     ext = true;
     Board nb = bd;
     nb[cur] = EMPTY;
-    nb[mid] = EMPTY;
     nb[land] = manOf(color);
-    bool mk = isKingPc(bd[mid]);
-    ref_man_caps(nb, land, orig, cap | bit(mid),
-                 capK | (mk ? bit(mid) : 0u), visited | bit(land), color, rules, out);
+    if (rules.immediate_removal) nb[mid] = EMPTY;   // else mid stays as a blocker
+    const uint32_t ndead = dead | bit(mid);
+    const bool mk = isKingPc(bd[mid]);
+    const uint32_t ncap = cap | bit(mid);
+    const uint32_t ncapK = capK | (mk ? bit(mid) : 0u);
+    const uint32_t nvis = visited | bit(land);
+
+    if (onPromo(color, land)) {
+      switch (rules.midcapture_promo) {
+        case MidCapPromo::Stop: {
+          Move m; m.from = uint8_t(orig); m.to = uint8_t(land);
+          m.captured = ncap; m.capturedKings = ncapK;
+          m.n_captured = uint8_t(popcount(ncap)); m.promotes = true;
+          out.push_back(m);
+          break;
+        }
+        case MidCapPromo::ContinueMan:
+          ref_man_caps(nb, ndead, land, orig, ncap, ncapK, nvis, color, rules, out);
+          break;
+        case MidCapPromo::PromoteAndContinue:
+          ref_king_caps(nb, ndead, land, orig, ncap, ncapK, nvis, color, rules, true, out);
+          break;
+      }
+    } else {
+      ref_man_caps(nb, ndead, land, orig, ncap, ncapK, nvis, color, rules, out);
+    }
   }
   if (cap && (!rules.force_continue || !ext)) {
     Move m;
@@ -80,20 +111,23 @@ void ref_man_caps(Board bd, int cur, int orig, uint32_t cap, uint32_t capK,
   }
 }
 
-void ref_king_caps(Board bd, int cur, int orig, uint32_t cap, uint32_t capK,
-                   uint32_t visited, int color, const RuleSet& rules,
+void ref_king_caps(Board bd, uint32_t dead, int cur, int orig, uint32_t cap, uint32_t capK,
+                   uint32_t visited, int color, const RuleSet& rules, bool promoted,
                    std::vector<Move>& out) {
   bool ext = false;
   auto capWith = [&](int blocker, int land) {
     ext = true;
     Board nb = bd;
     nb[cur] = EMPTY;
-    nb[blocker] = EMPTY;
     nb[land] = kingOf(color);
-    bool mk = isKingPc(bd[blocker]);
-    ref_king_caps(nb, land, orig, cap | bit(blocker),
-                  capK | (mk ? bit(blocker) : 0u), visited | bit(land), color, rules, out);
+    if (rules.immediate_removal) nb[blocker] = EMPTY;  // else blocker stays
+    const uint32_t ndead = dead | bit(blocker);
+    const bool mk = isKingPc(bd[blocker]);
+    ref_king_caps(nb, ndead, land, orig, cap | bit(blocker),
+                  capK | (mk ? bit(blocker) : 0u), visited | bit(land), color, rules,
+                  promoted, out);
   };
+
   for (int d = 0; d < 4; ++d) {
     int row, col; idxToRc(cur, row, col);
     int pr = row, pc = col, blocker = -1;
@@ -103,7 +137,8 @@ void ref_king_caps(Board bd, int cur, int orig, uint32_t cap, uint32_t capK,
       if (nx < 0) break;
       if (bd[nx] != EMPTY) { blocker = nx; break; }
     }
-    if (blocker < 0 || !isEnemy(bd[blocker], color)) continue;
+    if (blocker < 0 || bd[blocker] == EMPTY || !isEnemy(bd[blocker], color)) continue;
+    if (dead & bit(blocker)) continue;   // already jumped: blocks, cannot be taken again
     if (!rules.flying_kings && neighbor(cur, d) != blocker) continue;
     int br, bc; idxToRc(blocker, br, bc);
     if (rules.king_must_land_immediately_behind) {
@@ -124,7 +159,7 @@ void ref_king_caps(Board bd, int cur, int orig, uint32_t cap, uint32_t capK,
     m.from = uint8_t(orig); m.to = uint8_t(cur);
     m.captured = cap; m.capturedKings = capK;
     m.n_captured = uint8_t(popcount(cap));
-    m.promotes = false;
+    m.promotes = promoted;
     out.push_back(m);
   }
 }
@@ -181,9 +216,19 @@ std::vector<Move> ref_generate_captures(const Position& p, const RuleSet& r) {
     if (color == WHITE && !isWhite(pc)) continue;
     if (color == BLACK && !isBlack(pc)) continue;
     if (isKingPc(pc))
-      ref_king_caps(bd, sq, sq, 0, 0, bit(sq), color, r, out);
+      ref_king_caps(bd, 0, sq, sq, 0, 0, bit(sq), color, r, false, out);
     else
-      ref_man_caps(bd, sq, sq, 0, 0, bit(sq), color, r, out);
+      ref_man_caps(bd, 0, sq, sq, 0, 0, bit(sq), color, r, out);
+  }
+  // Match the fast generator's majority-capture filter.
+  if (r.max_capture_required && !out.empty()) {
+    int best = 0;
+    for (const Move& m : out) best = std::max(best, int(m.n_captured));
+    std::vector<Move> keep;
+    keep.reserve(out.size());
+    for (const Move& m : out)
+      if (int(m.n_captured) == best) keep.push_back(m);
+    out.swap(keep);
   }
   return out;
 }

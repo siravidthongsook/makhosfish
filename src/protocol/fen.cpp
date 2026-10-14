@@ -30,30 +30,39 @@ bool parse_uint(const std::string& s, int& v) {
   return true;
 }
 
-void add_square(uint32_t& men, uint32_t& kings, const std::string& item) {
+// Returns false on any malformed item, so a typo (e.g. a stray `B21` mid-list)
+// is rejected instead of being silently dropped.
+bool add_square(uint32_t& men, uint32_t& kings, const std::string& item) {
   std::string t = item;
   bool king = false;
   if (!t.empty() && (t[0] == 'K' || t[0] == 'k')) { king = true; t.erase(t.begin()); }
   auto dash = t.find('-');
   if (dash == std::string::npos) {
     int n = 0;
-    if (parse_uint(t, n) && n >= 1 && n <= 32)
-      (king ? kings : men) |= bit(n - 1);
-  } else {
-    int a = 0, b = 0;
-    if (parse_uint(t.substr(0, dash), a) && parse_uint(t.substr(dash + 1), b)) {
-      if (a > b) { int tmp = a; a = b; b = tmp; }
-      for (int n = a; n <= b; ++n)
-        if (n >= 1 && n <= 32) (king ? kings : men) |= bit(n - 1);
-    }
+    if (!parse_uint(t, n) || n < 1 || n > 32) return false;
+    (king ? kings : men) |= bit(n - 1);
+    return true;
   }
+  int a = 0, b = 0;
+  if (!parse_uint(t.substr(0, dash), a) || !parse_uint(t.substr(dash + 1), b)) return false;
+  if (a < 1 || a > 32 || b < 1 || b > 32) return false;
+  if (a > b) { int tmp = a; a = b; b = tmp; }
+  for (int n = a; n <= b; ++n) (king ? kings : men) |= bit(n - 1);
+  return true;
 }
 
-void parse_side(const std::string& tok, uint32_t& men, uint32_t& kings) {
+// Only a leading color letter (W/B) is the section tag; `K` stays to mark a king.
+bool parse_side(const std::string& tok, uint32_t& men, uint32_t& kings) {
   std::string body = tok;
-  if (!body.empty() && std::isalpha((unsigned char)body[0])) body.erase(body.begin());
-  for (const auto& item : split(body, ','))
-    if (!item.empty()) add_square(men, kings, item);
+  if (!body.empty()) {
+    char c = (char)std::toupper((unsigned char)body[0]);
+    if (c == 'W' || c == 'B') body.erase(body.begin());
+  }
+  if (body.empty()) return true;  // an empty side list is allowed
+  for (const auto& item : split(body, ',')) {
+    if (item.empty() || !add_square(men, kings, item)) return false;
+  }
+  return true;
 }
 
 std::string list_side(uint32_t men, uint32_t kings) {
@@ -94,8 +103,8 @@ bool parse_fen(const std::string& s, Position& p, const RuleSet& r) {
   if (stm != "W" && stm != "B") return false;
 
   Position np;
-  parse_side(parts[1], np.wm, np.wk);
-  parse_side(parts[2], np.bm, np.bk);
+  if (!parse_side(parts[1], np.wm, np.wk)) return false;
+  if (!parse_side(parts[2], np.bm, np.bk)) return false;
 
   if (parts.size() >= 4 && !parts[3].empty()) {
     int v = 0;

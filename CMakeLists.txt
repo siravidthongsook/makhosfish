@@ -35,6 +35,9 @@ add_library(makhosfish_core STATIC
   src/core/position.cpp
   src/core/movegen.cpp
   src/protocol/fen.cpp
+  src/eval/eval.cpp
+  src/search/tt.cpp
+  src/search/search.cpp
 )
 target_include_directories(makhosfish_core PUBLIC src)
 
@@ -44,6 +47,9 @@ target_link_libraries(makhosfish PRIVATE makhosfish_core)
 
 add_executable(makhosfish_perft tools/perft.cpp)
 target_link_libraries(makhosfish_perft PRIVATE makhosfish_core)
+
+add_executable(makhosfish_bench tools/bench.cpp)
+target_link_libraries(makhosfish_bench PRIVATE makhosfish_core)
 
 # --- tests --------------------------------------------------------------
 enable_testing()
@@ -56,6 +62,9 @@ add_executable(makhosfish_tests
   tests/test_fen.cpp
   tests/test_perft_agreement.cpp
   tests/test_perft_fixtures.cpp
+  tests/test_variants.cpp
+  tests/test_search.cpp
+  tests/test_eval.cpp
   tests/reference_movegen.cpp
 )
 target_include_directories(makhosfish_tests PRIVATE third_party tests)
