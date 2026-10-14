@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MakHosFish — หมากฮอส</title>
+  <link rel="stylesheet" href="board.css" />
+</head>
+<body>
+  <header class="topbar">
+    <h1>MakHosFish <span class="sub">หมากฮอส · Thai Checkers</span></h1>
+    <div id="status" class="status">connecting…</div>
+  </header>
+
+  <main class="layout">
+    <section class="board-wrap">
+      <div id="board" class="board" aria-label="makhos board"></div>
+      <div id="banner" class="banner hidden"></div>
+    </section>
+
+    <aside class="panel">
+      <div class="controls">
+        <label>Play as
+          <select id="side">
+            <option value="W">White (ขาว)</option>
+            <option value="B">Black (ดำ)</option>
+          </select>
+        </label>
+        <label>Eval
+          <select id="eval">
+            <option value="e2">E2 (patterns)</option>
+            <option value="e1">E1</option>
+            <option value="e0">E0</option>
+          </select>
+        </label>
+        <label>Strength
+          <select id="difficulty">
+            <option value="depth:2">depth 2</option>
+            <option value="depth:4">depth 4</option>
+            <option value="depth:6" selected>depth 6</option>
+            <option value="depth:8">depth 8</option>
+            <option value="movetime:200">200 ms</option>
+            <option value="movetime:1000">1 s</option>
+            <option value="movetime:3000">3 s</option>
+          </select>
+        </label>
+        <div class="buttons">
+          <button id="newgame">New game</button>
+          <button id="undo">Undo</button>
+        </div>
+      </div>
+
+      <div class="engine">
+        <div id="thinking" class="thinking hidden">engine thinking…</div>
+        <div id="info" class="info"></div>
+      </div>
+
+      <div class="moves">
+        <h2>Moves</h2>
+        <div id="movelist" class="movelist"></div>
+      </div>
+    </aside>
+  </main>
+
+  <div id="toasts" class="toasts"></div>
+
+  <script src="board.js"></script>
+</body>
+</html>

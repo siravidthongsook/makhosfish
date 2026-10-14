@@ -1,0 +1,14 @@
+{
+  "name": "makhos-web-bridge",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local HTTP + WebSocket bridge from the browser board to `makhosfish tci`.",
+  "type": "commonjs",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}

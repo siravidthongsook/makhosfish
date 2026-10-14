@@ -16,6 +16,18 @@ std::string run_tci(const std::string& script) {
   return out.str();
 }
 
+// First output line beginning with `prefix` (up to the next newline).
+std::string line_with(const std::string& output, const std::string& prefix) {
+  size_t p = 0;
+  while (p < output.size()) {
+    size_t e = output.find('\n', p);
+    if (e == std::string::npos) e = output.size();
+    if (output.compare(p, prefix.size(), prefix) == 0) return output.substr(p, e - p);
+    p = e + 1;
+  }
+  return "";
+}
+
 std::string bestmove_of(const std::string& output) {
   const std::string key = "bestmove ";
   const size_t p = output.rfind(key);
@@ -76,4 +88,33 @@ TEST_CASE("newgame resets to startpos") {
   const std::string o = run_tci("tci\nposition startpos moves 25-22\ntcinewgame\nperft 1\nquit\n");
   // startpos has 7 legal first moves; the after-25-22 position differs.
   CHECK(o.find("perft 1 7") != std::string::npos);
+}
+
+TEST_CASE("state returns fen, legal moves and side to move") {
+  const std::string o = run_tci("tci\nposition startpos\nstate\nquit\n");
+  CHECK(line_with(o, "fen ") == "fen W:W25-32:B1-8");
+  CHECK(line_with(o, "stm ") == "stm W");
+
+  // Seven legal first moves, in full notation, space-separated after `moves`.
+  const std::string mv = line_with(o, "moves ");
+  REQUIRE(mv.rfind("moves ", 0) == 0);
+  size_t count = 0;
+  for (size_t i = 0; i < mv.size();) {
+    size_t e = mv.find(' ', i);
+    if (e == std::string::npos) break;
+    ++count;
+    i = e + 1;
+  }
+  CHECK(count == 7);
+
+  // A forced double jump is reported as a single full-chain move.
+  const std::string o2 = run_tci("tci\nposition fen W:W25:B15,22\nstate\nquit\n");
+  CHECK(line_with(o2, "moves ") == "moves 25x18x11");
+}
+
+TEST_CASE("state reports an empty move list when the side to move loses") {
+  const std::string o = run_tci("tci\nposition fen W:W1:B\nstate\nquit\n");
+  CHECK(line_with(o, "fen ") == "fen W:W1:B");
+  CHECK(line_with(o, "moves") == "moves");  // no legal move -> terminal loss
+  CHECK(line_with(o, "stm ") == "stm W");
 }

@@ -1,0 +1,220 @@
+:root {
+  --bg: #14100d;
+  --panel: #1e1813;
+  --panel-2: #26201a;
+  --line: #3a2f25;
+  --text: #efe4d4;
+  --muted: #a99a86;
+  --accent: #d8a24a;
+  --light: #e7d3ac;
+  --dark: #7a5233;
+  --red: #b73a32;
+  --white-piece: #f2e6cc;
+  --sel: #4fae6d;
+  --target: #d8a24a;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: radial-gradient(1200px 700px at 50% -10%, #241c15 0%, var(--bg) 60%);
+  color: var(--text);
+  font: 15px/1.45 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+.topbar {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 26px;
+  border-bottom: 1px solid var(--line);
+}
+.topbar h1 { margin: 0; font-size: 20px; letter-spacing: .3px; }
+.topbar .sub { color: var(--muted); font-size: 13px; font-weight: 400; margin-left: 8px; }
+.status { color: var(--muted); font-variant-numeric: tabular-nums; }
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(320px, 620px) minmax(240px, 320px);
+  gap: 28px;
+  align-items: start;
+  justify-content: center;
+  padding: 28px 26px 60px;
+}
+
+.board-wrap { position: relative; }
+
+.board {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  grid-template-rows: repeat(8, 1fr);
+  aspect-ratio: 1 / 1;
+  width: 100%;
+  border: 10px solid #2b2119;
+  border-radius: 10px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, .55), inset 0 0 0 1px rgba(0, 0, 0, .4);
+  overflow: hidden;
+}
+
+.sq { position: relative; display: flex; align-items: center; justify-content: center; min-width: 0; min-height: 0; }
+.sq.light { background: var(--light); }
+.sq.dark { background: var(--dark); }
+
+.num {
+  position: absolute;
+  top: 3px; left: 5px;
+  font-size: 10px;
+  color: rgba(0, 0, 0, .35);
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
+.piece {
+  width: 76%;
+  aspect-ratio: 1 / 1;
+  border-radius: 50%;
+  position: relative;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, .45), inset 0 2px 3px rgba(255, 255, 255, .25),
+    inset 0 -3px 5px rgba(0, 0, 0, .35);
+  cursor: pointer;
+  transition: transform .08s ease;
+}
+.piece.white { background: radial-gradient(circle at 35% 30%, #fff8ec, var(--white-piece) 55%, #c9b48c); }
+.piece.black { background: radial-gradient(circle at 35% 30%, #c9524a, var(--red) 55%, #7d201b); }
+.piece::after {
+  content: "";
+  position: absolute; inset: 18%;
+  border-radius: 50%;
+  border: 2px solid rgba(0, 0, 0, .18);
+  box-shadow: inset 0 1px 2px rgba(255, 255, 255, .3);
+}
+.piece.king::before {
+  content: "♛";
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.4em;
+  color: rgba(0, 0, 0, .55);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, .35);
+  z-index: 2;
+}
+.piece.black.king::before { color: rgba(255, 235, 220, .85); text-shadow: 0 1px 1px rgba(0,0,0,.5); }
+
+/* Side to move cannot play this piece (e.g. capture is compulsory elsewhere). */
+.piece.invalid {
+  filter: grayscale(1) brightness(.5);
+  opacity: .4;
+  cursor: default;
+  box-shadow: none;
+}
+/* Capture is compulsory and this piece must make it. */
+.piece.must-capture {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+  animation: pulse 1.4s ease-in-out infinite;
+}
+@keyframes pulse {
+  50% { outline-color: rgba(216, 162, 74, .35); }
+}
+
+.sq.selected { outline: 3px solid var(--sel); outline-offset: -3px; }
+.sq.selected .piece { transform: scale(1.04); }
+.sq.target::after {
+  content: "";
+  position: absolute;
+  width: 34%; aspect-ratio: 1 / 1;
+  border-radius: 50%;
+  background: rgba(216, 162, 74, .55);
+  box-shadow: 0 0 12px rgba(216, 162, 74, .7);
+  pointer-events: none;
+}
+
+/* A target square that holds a capturable piece: ring instead of dot. */
+.sq.target:has(.piece)::after {
+  width: 82%; background: transparent;
+  border: 4px solid rgba(216, 162, 74, .85);
+}
+
+.banner {
+  position: absolute;
+  inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  text-align: center;
+  background: rgba(12, 9, 6, .72);
+  border-radius: 10px;
+  font-size: 22px; font-weight: 600;
+  backdrop-filter: blur(2px);
+}
+.banner.hidden, .hidden { display: none; }
+
+.panel { display: flex; flex-direction: column; gap: 18px; }
+
+.controls {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 12px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 14px;
+}
+.controls label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+.controls .buttons { grid-column: 1 / -1; display: flex; gap: 10px; margin-top: 2px; }
+select, button {
+  font: inherit; color: var(--text);
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+  cursor: pointer;
+}
+button:hover, select:hover { border-color: var(--accent); }
+button:disabled { opacity: .5; cursor: default; }
+
+.engine {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+.thinking { color: var(--accent); font-size: 13px; margin-bottom: 6px; }
+.info { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: pre-wrap; }
+
+.moves h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); margin: 0 0 8px; }
+.movelist {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  min-height: 80px;
+  max-height: 320px;
+  overflow-y: auto;
+  font-variant-numeric: tabular-nums;
+}
+.ply { display: flex; gap: 8px; padding: 2px 0; }
+.ply .idx { color: var(--muted); width: 22px; text-align: right; flex: none; }
+.ply .mv { color: var(--text); }
+.ply.latest .mv { color: var(--accent); font-weight: 600; }
+
+.toasts {
+  position: fixed;
+  right: 18px; bottom: 18px;
+  display: flex; flex-direction: column; gap: 8px;
+  z-index: 50;
+}
+.toast {
+  background: #3a1f1c;
+  border: 1px solid #7a3a33;
+  color: #ffd9d4;
+  padding: 10px 14px;
+  border-radius: 8px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .5);
+  animation: rise .18s ease;
+}
+@keyframes rise { from { transform: translateY(8px); opacity: 0; } }
+
+@media (max-width: 900px) {
+  .layout { grid-template-columns: 1fr; }
+}

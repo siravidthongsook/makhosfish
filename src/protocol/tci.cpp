@@ -1,4 +1,5 @@
 #include "protocol/tci.hpp"
+#include "core/movegen.hpp"
 #include "core/perft.hpp"
 #include "eval/pattern.hpp"
 #include "protocol/fen.hpp"
@@ -125,6 +126,19 @@ void TciSession::handle(const std::string& line) {
     int depth = (tok.size() > 1) ? (int)to_int(tok[1]) : 1;
     for (int d = 1; d <= depth; ++d)
       out_line("perft " + std::to_string(d) + " " + std::to_string(perft(pos_, rules_, d)));
+    return;
+  }
+
+  // Board + legal-move query for click UIs: one round-trip returns the frozen
+  // FEN, every legal move in full notation, and the side to move. An empty
+  // `moves` list means the side to move has lost (§3.5).
+  if (cmd == "state") {
+    out_line("fen " + to_fen(pos_));
+    std::string mv = "moves";
+    for (const Move& m : legal_moves(pos_, rules_))
+      mv += " " + move_to_notation(pos_, rules_, m);
+    out_line(mv);
+    out_line(std::string("stm ") + (pos_.stm == WHITE ? "W" : "B"));
     return;
   }
   // Unknown command: ignore, per UCI convention.

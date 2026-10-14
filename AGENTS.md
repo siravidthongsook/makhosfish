@@ -118,6 +118,13 @@ egdb,notation,pdn,tci}.cpp`; independent generator `reference_movegen.{hpp,cpp}`
 `third_party/doctest/doctest.h` — vendored test framework.
 `.github/workflows/ci.yml` — matrix {ubuntu, macos} × {release, sanitize}.
 
+### Web board — `web/`
+Optional local browser UI (`web/serve.sh`). A Node + `ws` bridge (`web/server/`)
+spawns one `makhosfish tci` child per session and translates JSON ⇄ TCI; the
+vanilla-JS UI (`web/public/`) renders the FEN/legal-move list and never
+reimplements rules. Engine side: the `state` command in `src/protocol/tci.cpp`
+returns `<fen> / <moves> / <stm>`. See `web/README.md`.
+
 ---
 
 ## Design notes (why things are the way they are)

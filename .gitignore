@@ -19,6 +19,10 @@ compile_commands.json
 # OS
 .DS_Store
 
+# Web bridge
+web/server/node_modules/
+web/server/package-lock.json
+
 # Generated engine data (large, self-generated)
 data/book.bin
 data/egdb/*.mhdb
