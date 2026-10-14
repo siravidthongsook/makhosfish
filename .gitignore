@@ -1,0 +1,24 @@
+# Build output
+build/
+build-*/
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+*.o
+*.a
+*.so
+*.dylib
+compile_commands.json
+
+# IDE
+.idea/
+.vscode/
+*.xcodeproj/
+*.xcworkspace/
+
+# OS
+.DS_Store
+
+# Generated engine data (large, self-generated)
+data/book.bin
+data/egdb/*.mhdb

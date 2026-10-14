@@ -1,0 +1,30 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        build: [release, sanitize]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure (release)
+        if: matrix.build == 'release'
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DMAKHOS_NATIVE=OFF
+
+      - name: Configure (sanitize)
+        if: matrix.build == 'sanitize'
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DMAKHOS_NATIVE=OFF -DMAKHOS_SANITIZE=ON
+
+      - name: Build
+        run: cmake --build build -j
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure

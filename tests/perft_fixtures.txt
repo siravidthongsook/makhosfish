@@ -1,0 +1,16 @@
+# MakHosFish perft fixtures (Thai rules).
+# Counts are produced by the fast bitboard generator and cross-verified against
+# the independent reference generator (tests/test_perft_agreement.cpp) in CI.
+# format:  <FEN> ; D<depth> <count> ; D<depth> <count> ; ...
+#
+# start position: 8 men a side, 4 empty rows between
+W:W25-32:B1-8 ; D1 7 ; D2 49 ; D3 392 ; D4 3136 ; D5 26592 ; D6 218695 ; D7 1820189 ; D8 14533014 ; D9 114530830
+#
+# midgame with kings (exercises flying captures + landing rule)
+W:WK28,B21:B9,K22 ; D1 7 ; D2 79 ; D3 483 ; D4 4259 ; D5 26931
+W:WK29,B26:B6,K22 ; D1 1 ; D2 2 ; D3 14 ; D4 24 ; D5 108
+#
+# rule-specific positions (forced capture)
+W:W25,27:B23 ; D1 1
+W:WK29:B22 ; D1 1
+B:W27:B23 ; D1 1
