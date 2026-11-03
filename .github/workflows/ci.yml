@@ -24,7 +24,7 @@ jobs:
         build: [release, sanitize]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Configure (release)
         if: matrix.build == 'release'
@@ -48,7 +48,7 @@ jobs:
     name: repo hygiene
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Every source file carries a license identifier
         run: |
