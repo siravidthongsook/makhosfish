@@ -50,10 +50,14 @@ Client → server:
 | `{type:"state"}`                          | current `{fen, legal, stm}`         |
 | `{type:"move", m}`                        | validate `m` against `legal`, apply |
 | `{type:"undo", plies}`                    | rewind and re-sync                  |
-| `{type:"go", depth|movetime|nodes}`       | search; engine plays its own move   |
+| `{type:"go", depth|movetime|nodes, multipv?, seq?}` | search; engine plays its own move |
+| `{type:"analyze", depth|movetime|nodes, multipv?, seq?}` | hint search; streams `info`, never moves |
 | `{type:"stop"}`                           | stop the running search             |
 
-Server → client: `state`, `info`, `bestmove`, `thinking`, `error`.
+Server → client: `state`, `info` (`multipv` 1..5, `seq` echo), `bestmove`,
+`analysis`, `thinking`, `error`. The UI draws the top-3 `info` lines as board
+arrows (first move solid, continuation dashed) plus a White-relative eval bar;
+clicking a line pins its full-PV preview.
 
 ## Notes
 

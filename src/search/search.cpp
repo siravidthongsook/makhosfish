@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Siravid Thongsook and MakHosFish contributors
+
 #include "search/search.hpp"
 #include <algorithm>
 #include <chrono>
@@ -271,6 +274,62 @@ SearchInfo Searcher::go(Position& p, const RuleSet& r, const SearchLimits& limit
     const int n = generate_moves(p, r, buf, 256);
     info_.pv.clear();
     if (n > 0) info_.pv.push_back(buf[0]);
+  }
+
+  // MultiPV: score the remaining root moves once at the completed depth so the
+  // UI can draw the top-N lines. The best line keeps its iterative-deepening
+  // score/PV (bestmove never changes vs multipv=1); alternatives are searched
+  // with a full window at depth-1 and ranked below it. Bounded by the same
+  // stop flag (time/nodes/external stop), so a `stop` still answers promptly.
+  const int wantPv = std::max(1, std::min(limits.multipv, 5));
+  if (wantPv > 1 && !info_.pv.empty()) {
+    const bool wasStopped = stopped_;
+    stopped_ = false;  // allow the extra pass its share of the remaining budget
+    const int doneDepth = std::max(1, info_.depth);
+    Move roots[256];
+    const int nRoots = generate_moves(p, r, roots, 256);
+    struct Alt { int score; std::vector<Move> pv; };
+    std::vector<Alt> alts;
+    alts.reserve(size_t(nRoots));
+    const Move bestRoot = info_.pv[0];
+    for (int i = 0; i < nRoots && int(alts.size()) < wantPv - 1; ++i) {
+      if (roots[i] == bestRoot) continue;
+      if (stop_check()) break;
+      const uint16_t prev50 = p.rule50;
+      do_move(p, roots[i], *rules_);
+      path_[1] = p.hash;
+      const int sub = std::max(0, doneDepth - 1);
+      const int sc = -negamax(p, sub, -INF_SCORE, INF_SCORE, 1, true);
+      const bool cut = stopped_;
+      std::vector<Move> line;
+      if (!cut) {
+        line.push_back(roots[i]);
+        for (int k = 0; k < pv_len_[1]; ++k) line.push_back(pv_table_[1][k]);
+      }
+      undo_move(p, roots[i], prev50, *rules_);
+      if (cut) break;
+      alts.push_back({sc, std::move(line)});
+    }
+    stopped_ = stopped_ || wasStopped;
+    // Best line first (already emitted per-iteration without a multipv tag);
+    // re-emit all lines with explicit ranks so the GUI can replace them.
+    std::sort(alts.begin(), alts.end(),
+              [](const Alt& a, const Alt& b) { return a.score > b.score; });
+    SearchInfo best = info_;
+    best.multipv = 1;
+    if (info_cb_) info_cb_(best);
+    for (size_t i = 0; i < alts.size(); ++i) {
+      SearchInfo li;
+      li.depth = doneDepth;
+      li.seldepth = seldepth_;
+      li.score_cp = alts[i].score;
+      li.nodes = nodes_;
+      li.time_ms = elapsed_ms();
+      li.multipv = int(i) + 2;
+      li.pv = std::move(alts[i].pv);
+      if (info_cb_) info_cb_(li);
+    }
+    info_.multipv = 1;
   }
 
   info_.nodes = nodes_;

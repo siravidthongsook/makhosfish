@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Siravid Thongsook and MakHosFish contributors
+
 #include "protocol/tci.hpp"
 #include "core/movegen.hpp"
 #include "core/perft.hpp"
@@ -71,6 +74,7 @@ void TciSession::handle(const std::string& line) {
     out_line("id name MakHosFish 0.1");
     out_line("id author MakHosFish");
     out_line("option name Hash type spin default 128 min 1 max 32768");
+    out_line("option name MultiPV type spin default 1 min 1 max 5");
     out_line("option name Eval type combo default e2 var e0 var e1 var e2");
     out_line("option name PatternFile type string default <empty>");
     out_line("option name RuleSet type combo default thai var thai var english var russian var brazilian");
@@ -102,6 +106,8 @@ void TciSession::handle(const std::string& line) {
       if (value == "e0") searcher_.set_eval_mode(EvalMode::E0);
       else if (value == "e2") searcher_.set_eval_mode(EvalMode::E2);
       else searcher_.set_eval_mode(EvalMode::E1);
+    } else if (name == "MultiPV") {
+      multipv_ = std::max(1, std::min(5, (int)to_int(value)));
     } else if (name == "PatternFile") {
       if (!value.empty() && !active_pattern().load(value))
         out_line("info string cannot load pattern file: " + value);
@@ -181,11 +187,13 @@ void TciSession::cmd_position(const std::vector<std::string>& tok) {
 void TciSession::cmd_go(const std::vector<std::string>& tok) {
   SearchLimits lim;
   lim.depth = MAX_PLY - 1;
+  lim.multipv = multipv_;
   bool have_time = false;
   for (size_t i = 1; i < tok.size(); ++i) {
     const std::string& k = tok[i];
     auto val = [&](int64_t& dst) { if (i + 1 < tok.size()) dst = to_int(tok[++i]); };
     if (k == "depth") { int64_t v = 0; val(v); lim.depth = (int)std::max<int64_t>(1, std::min<int64_t>(v, MAX_PLY - 1)); }
+    else if (k == "multipv") { int64_t v = 1; val(v); lim.multipv = (int)std::max<int64_t>(1, std::min<int64_t>(v, 5)); }
     else if (k == "nodes") { int64_t v = 0; val(v); lim.nodes_limit = (uint64_t)std::max<int64_t>(0, v); }
     else if (k == "movetime") { val(lim.movetime_ms); have_time = true; }
     else if (k == "wtime") { val(lim.wtime_ms); have_time = true; }
@@ -212,6 +220,7 @@ void TciSession::start_search(const SearchLimits& lim) {
   searcher_.set_info_callback([this, root, rules](const SearchInfo& inf) {
     std::string s = "info depth " + std::to_string(inf.depth) +
                     " seldepth " + std::to_string(inf.seldepth) +
+                    " multipv " + std::to_string(std::max(1, inf.multipv)) +
                     " score cp " + std::to_string(inf.score_cp) +
                     " nodes " + std::to_string(inf.nodes) +
                     " time " + std::to_string(inf.time_ms) + " pv";

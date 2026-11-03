@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Siravid Thongsook and MakHosFish contributors
+
 'use strict';
 
 const { spawn } = require('node:child_process');
@@ -7,14 +10,16 @@ const { EventEmitter } = require('node:events');
 const DEFAULT_TIMEOUT_MS = 30000;
 const SEARCH_TIMEOUT_MS = 10 * 60 * 1000; // a search is bounded by depth/movetime, but never hang forever
 
-// Parse a TCI `info` line into a structured object.
+// Parse a TCI `info` line into a structured object. `multipv` is the 1-indexed
+// engine line number (defaults to 1 for older binaries that omit the token).
 function parseInfo(line) {
   const t = line.split(/\s+/);
-  const o = { depth: 0, seldepth: 0, score: 0, nodes: 0, time: 0, pv: [] };
+  const o = { depth: 0, seldepth: 0, multipv: 1, score: 0, nodes: 0, time: 0, pv: [] };
   for (let i = 1; i < t.length; i++) {
     switch (t[i]) {
       case 'depth': o.depth = +t[++i]; break;
       case 'seldepth': o.seldepth = +t[++i]; break;
+      case 'multipv': o.multipv = +t[++i]; break;
       case 'score': i += 2; o.score = +t[i]; break;
       case 'nodes': o.nodes = +t[++i]; break;
       case 'time': o.time = +t[++i]; break;
@@ -22,6 +27,7 @@ function parseInfo(line) {
       default: break;
     }
   }
+  if (!Number.isFinite(o.multipv) || o.multipv < 1) o.multipv = 1;
   return o;
 }
 
@@ -188,6 +194,7 @@ class Engine extends EventEmitter {
       else if (limits.movetime != null) parts.push('movetime', String(limits.movetime));
       else if (limits.nodes != null) parts.push('nodes', String(limits.nodes));
       else parts.push('depth', '8');
+      if (limits.multipv != null) parts.push('multipv', String(limits.multipv));
       const line = parts.join(' ');
       return this._command(
         line,

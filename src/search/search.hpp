@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Siravid Thongsook and MakHosFish contributors
+
 #pragma once
 #include <atomic>
 #include <cstdint>
@@ -17,6 +20,7 @@ struct SearchLimits {
   int64_t wtime_ms = 0, btime_ms = 0, winc_ms = 0, binc_ms = 0;
   uint64_t nodes_limit = 0;
   bool infinite = false;
+  int multipv = 1;  // number of root lines to report (1 = best only)
 };
 
 struct SearchInfo {
@@ -24,6 +28,7 @@ struct SearchInfo {
   int score_cp = 0;
   uint64_t nodes = 0;
   int64_t time_ms = 0;
+  int multipv = 1;  // 1-indexed line number (UCI-style)
   std::vector<Move> pv;
 };
 

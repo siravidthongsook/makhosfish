@@ -46,6 +46,49 @@ body {
 }
 
 .board-wrap { position: relative; }
+.board-row { display: flex; gap: 10px; align-items: stretch; }
+.board-holder { position: relative; flex: 1; min-width: 0; }
+
+/* Toggleable eval bar (White share, left of the board). */
+.evalbar {
+  position: relative;
+  width: 26px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #0d0a07;
+  border: 1px solid var(--line);
+  flex: none;
+  align-self: stretch;
+}
+.evalbar.hidden { display: none; }
+.eval-white {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  height: 50%;
+  background: linear-gradient(to top, #f2e6cc, #cbb98f);
+  transition: height .3s ease;
+}
+.eval-black {
+  position: absolute; left: 0; right: 0; top: 0; bottom: 0;
+  background: linear-gradient(to bottom, #3a2c22, #171008);
+}
+.eval-label {
+  position: absolute; left: 0; right: 0; bottom: 4px;
+  text-align: center;
+  font-size: 10px; font-weight: 700;
+  color: #241a10;
+  mix-blend-mode: normal;
+  pointer-events: none;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Engine-line arrows overlaying the board (never intercepts clicks). */
+.arrows {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  pointer-events: none;
+  overflow: visible;
+}
+.arrows.hidden { display: none; }
 
 .board {
   display: grid;
@@ -57,6 +100,9 @@ body {
   border-radius: 10px;
   box-shadow: 0 24px 60px rgba(0, 0, 0, .55), inset 0 0 0 1px rgba(0, 0, 0, .4);
   overflow: hidden;
+  touch-action: none; /* drags are game moves, never scrolls */
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .sq { position: relative; display: flex; align-items: center; justify-content: center; min-width: 0; min-height: 0; }
@@ -102,12 +148,11 @@ body {
 }
 .piece.black.king::before { color: rgba(255, 235, 220, .85); text-shadow: 0 1px 1px rgba(0,0,0,.5); }
 
-/* Side to move cannot play this piece (e.g. capture is compulsory elsewhere). */
+/* Side to move cannot play this piece (capture is compulsory elsewhere). */
 .piece.invalid {
-  filter: grayscale(1) brightness(.5);
-  opacity: .4;
+  filter: grayscale(.45);
+  opacity: .62;
   cursor: default;
-  box-shadow: none;
 }
 /* Capture is compulsory and this piece must make it. */
 .piece.must-capture {
@@ -117,6 +162,17 @@ body {
 }
 @keyframes pulse {
   50% { outline-color: rgba(216, 162, 74, .35); }
+}
+
+/* The dragged copy follows the pointer; the source cell dims underneath. */
+.piece.ghost {
+  position: fixed;
+  margin: 0;
+  z-index: 100;
+  pointer-events: none;
+  opacity: .92;
+  box-shadow: 0 14px 26px rgba(0, 0, 0, .6), inset 0 2px 3px rgba(255, 255, 255, .25),
+    inset 0 -3px 5px rgba(0, 0, 0, .35);
 }
 
 .sq.selected { outline: 3px solid var(--sel); outline-offset: -3px; }
@@ -136,6 +192,9 @@ body {
   width: 82%; background: transparent;
   border: 4px solid rgba(216, 162, 74, .85);
 }
+
+/* The landing square under a dragged piece. */
+.sq.hover { outline: 3px solid var(--accent); outline-offset: -3px; }
 
 .banner {
   position: absolute;
@@ -181,6 +240,45 @@ button:disabled { opacity: .5; cursor: default; }
 }
 .thinking { color: var(--accent); font-size: 13px; margin-bottom: 6px; }
 .info { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: pre-wrap; }
+
+.toggles {
+  display: flex; gap: 14px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 8px 14px;
+  font-size: 13px; color: var(--muted);
+}
+.toggles label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+.toggles input { accent-color: var(--accent); }
+
+.lines h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); margin: 0 0 8px; }
+.lines h2 .analyzing { text-transform: none; letter-spacing: 0; color: var(--accent); font-weight: 400; }
+.linelist {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 6px;
+  min-height: 80px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+.linelist.hidden { display: none; }
+.line {
+  display: flex; gap: 8px; align-items: baseline;
+  padding: 7px 9px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.line:hover { background: var(--panel-2); }
+.line.pinned { background: var(--panel-2); outline: 1px solid var(--accent); }
+.line .dot { width: 10px; height: 10px; border-radius: 50%; flex: none; align-self: center; }
+.line .sc { font-weight: 700; min-width: 52px; flex: none; }
+.line .pv { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.line .dp { color: var(--muted); font-size: 11px; flex: none; margin-left: auto; }
+.line.empty { color: var(--muted); cursor: default; }
 
 .moves h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); margin: 0 0 8px; }
 .movelist {

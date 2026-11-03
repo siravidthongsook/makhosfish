@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Siravid Thongsook and MakHosFish contributors
+
 'use strict';
 
 const http = require('node:http');
@@ -80,6 +83,7 @@ class Session {
         case 'move': return await this.onMove(msg);
         case 'undo': return await this.onUndo(msg);
         case 'go': return await this.onGo(msg);
+        case 'analyze': return await this.onAnalyze(msg);
         case 'stop': this.engine.stop(); return;
         default: this.send({ type: 'error', message: 'unknown message type: ' + msg.type });
       }    } catch (e) {
@@ -122,20 +126,28 @@ class Session {
     await this.pushState();
   }
 
+  // Shared limit parsing for `go` (plays the move) and `analyze` (hint only).
+  // Defaults to 3 lines so the UI can draw the top-3 arrows.
+  parseLimits(msg) {
+    const limits = {};
+    if (msg.depth != null) limits.depth = msg.depth;
+    else if (msg.movetime != null) limits.movetime = msg.movetime;
+    else if (msg.nodes != null) limits.nodes = msg.nodes;
+    const mp = msg.multipv != null ? msg.multipv : 3;
+    limits.multipv = Math.max(1, Math.min(5, mp | 0 || 3));
+    return limits;
+  }
+
   async onGo(msg) {
     await this.ensureSynced();
     if (!this.last) this.last = await this.engine.state();
     if (!this.last.legal.length) { await this.pushState(); return; }
 
-    const limits = {};
-    if (msg.depth != null) limits.depth = msg.depth;
-    else if (msg.movetime != null) limits.movetime = msg.movetime;
-    else if (msg.nodes != null) limits.nodes = msg.nodes;
-
+    const limits = this.parseLimits(msg);
     this.send({ type: 'thinking', value: true });
     try {
-      const res = await this.engine.go(limits, (info) => this.send({ type: 'info', ...info }));
-      this.send({ type: 'bestmove', move: res.bestmove });
+      const res = await this.engine.go(limits, (info) => this.send({ type: 'info', ...info, seq: msg.seq }));
+      this.send({ type: 'bestmove', move: res.bestmove, seq: msg.seq });
       if (res.bestmove && res.bestmove !== '(none)') {
         this.moves.push(res.bestmove);
         await this.setPosition();
@@ -143,6 +155,23 @@ class Session {
       await this.pushState();
     } finally {
       this.send({ type: 'thinking', value: false });
+    }
+  }
+
+  // Hint search for the human's turn: streams `info` lines but never moves.
+  // The client tags requests with `seq` and ignores stale replies.
+  async onAnalyze(msg) {
+    await this.ensureSynced();
+    if (!this.last) this.last = await this.engine.state();
+    if (!this.last.legal.length) return;
+
+    const limits = this.parseLimits(msg);
+    this.send({ type: 'thinking', value: true, analysis: true });
+    try {
+      const res = await this.engine.go(limits, (info) => this.send({ type: 'info', ...info, seq: msg.seq }));
+      this.send({ type: 'analysis', bestmove: res.bestmove, seq: msg.seq });
+    } finally {
+      this.send({ type: 'thinking', value: false, analysis: true });
     }
   }
 

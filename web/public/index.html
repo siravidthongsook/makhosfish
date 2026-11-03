@@ -14,8 +14,18 @@
 
   <main class="layout">
     <section class="board-wrap">
-      <div id="board" class="board" aria-label="makhos board"></div>
-      <div id="banner" class="banner hidden"></div>
+      <div class="board-row">
+        <div id="evalbar" class="evalbar" title="White advantage">
+          <div id="evalblack" class="eval-black"></div>
+          <div id="evalwhite" class="eval-white"></div>
+          <div id="evallabel" class="eval-label">—</div>
+        </div>
+        <div class="board-holder">
+          <div id="board" class="board" aria-label="makhos board"></div>
+          <svg id="arrows" class="arrows" viewBox="0 0 800 800" preserveAspectRatio="none"></svg>
+          <div id="banner" class="banner hidden"></div>
+        </div>
+      </div>
     </section>
 
     <aside class="panel">
@@ -50,9 +60,20 @@
         </div>
       </div>
 
+      <div class="toggles">
+        <label><input type="checkbox" id="tgl-eval" checked /> Eval bar</label>
+        <label><input type="checkbox" id="tgl-arrows" checked /> Arrows</label>
+        <label><input type="checkbox" id="tgl-lines" checked /> Lines</label>
+      </div>
+
       <div class="engine">
         <div id="thinking" class="thinking hidden">engine thinking…</div>
         <div id="info" class="info"></div>
+      </div>
+
+      <div class="lines">
+        <h2>Engine lines <span id="analyzing" class="analyzing hidden">analyzing…</span></h2>
+        <div id="linelist" class="linelist"></div>
       </div>
 
       <div class="moves">

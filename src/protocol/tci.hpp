@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Siravid Thongsook and MakHosFish contributors
+
 #pragma once
 #include <atomic>
 #include <iosfwd>
@@ -35,6 +38,7 @@ class TciSession {
   Position pos_;
   std::vector<uint64_t> history_;   // hashes of the game before pos_ (for repeats)
   Searcher searcher_{128};          // default 128 MB Hash (spec §11.1)
+  int multipv_ = 1;                 // sticky MultiPV setting (overridden by `go multipv N`)
 
   std::ostream* out_ = nullptr;
   std::mutex mu_;
