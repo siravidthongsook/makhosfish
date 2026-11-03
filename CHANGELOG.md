@@ -12,7 +12,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) once versi
   web board to draw alternative lines.
 - Web board: alternative-line arrows, eval bar, and line previews.
 
-## [0.1.0] — 2026-10-14
+## [0.1.0] — 2026-11-04
 
 First public snapshot of the engine. Milestones M0–M5 (partial) are complete.
 
