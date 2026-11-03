@@ -1,0 +1,43 @@
+name: Feature request
+description: Suggest a strength, protocol, tooling, or documentation improvement
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: Describe the gap or friction, not just the proposed solution.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: How would you like it to work? Sketches and references to other engines are welcome.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Rules / perft / correctness
+        - Search
+        - Evaluation (E0/E1/E2)
+        - Endgame bitbases / opening book
+        - Protocol (TCI) / FEN / PDN
+        - CLI / tools / data pipeline
+        - Web board
+        - Build / CI / docs
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Optional — other approaches and why you rejected them.
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Strength measurements, GUI requirements, links to specs, etc.

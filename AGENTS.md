@@ -20,8 +20,10 @@ evaluation. Thai is the product; other draughts variants exist *only* as a perft
 3. **Perft is ground truth.** Thai perft(9) = `114530830` must never change. The fast
    generator must agree with the independent reference generator (`tests/reference_movegen.*`).
 4. **10×10 International is out of scope** (does not fit the 32-bit board).
-5. **Self-generated data only** (MIT / no third-party data or code copied except the
-   vendored `doctest`).
+5. **Self-generated data only** (no third-party data or code copied except the vendored
+   `doctest`, which is MIT and GPL-compatible).
+6. **License is GPL-3.0-or-later.** New files carry an SPDX header; contributions are accepted
+   under the same terms.
 
 ---
 
@@ -116,7 +118,9 @@ egdb,notation,pdn,tci}.cpp`; independent generator `reference_movegen.{hpp,cpp}`
 ### Data & other
 `data/patterns/thai_e2.mhpw` — shipped E2 weights (9.4 MB; `.mhpw` format spec §20.6).
 `third_party/doctest/doctest.h` — vendored test framework.
-`.github/workflows/ci.yml` — matrix {ubuntu, macos} × {release, sanitize}.
+`.github/workflows/ci.yml` — matrix {ubuntu, macos} × {release, sanitize}; `.github/workflows/codeql.yml` — CodeQL (C++ + web JS).
+`LICENSE` (GPL-3.0), `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md`, `CHANGELOG.md`,
+`.github/ISSUE_TEMPLATE/`, `.github/PULL_REQUEST_TEMPLATE.md` — public-repo process.
 
 ### Web board — `web/`
 Optional local browser UI (`web/serve.sh`). A Node + `ws` bridge (`web/server/`)

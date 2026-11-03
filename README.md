@@ -1,5 +1,9 @@
 # MakHosFish
 
+[![ci](https://github.com/siravidthongsook/makhosfish/actions/workflows/ci.yml/badge.svg)](https://github.com/siravidthongsook/makhosfish/actions/workflows/ci.yml)
+[![license: GPL-3.0-or-later](https://img.shields.io/badge/license-GPL--3.0--or--later-blue.svg)](LICENSE)
+[![C++20](https://img.shields.io/badge/C%2B%2B-20-00599C.svg)](CMakeLists.txt)
+
 A **Stockfish-class engine for Thai checkers (หมากฮอส / Makhos / Thai Draughts)**.
 There is no dedicated super-strong makhos engine today — this project aims to be the first.
 
@@ -25,6 +29,9 @@ flies along diagonals. Two rules make Thai distinct and are implemented exactly:
 maximum-capture rule**, and no move = loss (no stalemate-as-draw).
 
 ## Quickstart
+
+Requires CMake ≥ 3.20 and a C++20 compiler (clang or gcc); Linux and macOS are supported and CI
+tested. The only dependency, `doctest`, is vendored — nothing is downloaded at build time.
 
 ```bash
 # macOS: pass the Xcode SDK sysroot, or linking fails on this machine.
@@ -107,7 +114,28 @@ Milestones M0 → M4 are complete (rules + perft, search, E0/E1, protocol/CLI, E
 Next: **M5 — endgame bitbases**, then opening book + parallel search (M6) and NNUE (M7).
 See [`spec.md` §16](spec.md) and [`AGENTS.md`](AGENTS.md) for the full picture.
 
+## Contributing
+
+Contributions are welcome: rule/perft reports, strength measurements, portability fixes, docs, and
+code alike.
+
+- Read [`CONTRIBUTING.md`](CONTRIBUTING.md) for the build, test, and PR workflow.
+- Bug reports and feature requests: use the issue templates.
+- Security issues: report privately per [`SECURITY.md`](SECURITY.md) — never in a public issue.
+- Participation is governed by the [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md).
+- Notable changes are tracked in [`CHANGELOG.md`](CHANGELOG.md).
+
 ## License
 
-Own code and self-generated data only (MIT); no third-party engine code or data is used, except
-the vendored [`doctest`](third_party/doctest/doctest.h) test framework.
+MakHosFish is free software: you can redistribute it and/or modify it under the terms of the
+**GNU General Public License as published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version** (`GPL-3.0-or-later`). See [`LICENSE`](LICENSE) for
+the full text.
+
+Copyright (C) 2026 Siravid Thongsook and MakHosFish contributors.
+
+The engine contains no third-party engine code or external game data: evaluation weights and
+datasets are self-generated, and the only third-party code is the vendored, MIT-licensed
+[`doctest`](third_party/doctest/doctest.h) test framework (MIT is GPL-compatible). Distributing a
+modified version means publishing your changes under the same license.
+

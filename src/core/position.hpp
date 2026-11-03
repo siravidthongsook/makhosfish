@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Siravid Thongsook and MakHosFish contributors
+
 #pragma once
 #include "core/types.hpp"
 #include "core/move.hpp"

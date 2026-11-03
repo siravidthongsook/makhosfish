@@ -21,7 +21,6 @@ compile_commands.json
 
 # Web bridge
 web/server/node_modules/
-web/server/package-lock.json
 
 # Generated engine data (large, self-generated)
 data/book.bin

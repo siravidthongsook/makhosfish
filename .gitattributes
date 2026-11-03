@@ -1,0 +1,18 @@
+# Normalise line endings: LF in the repo, LF on checkout for source.
+* text=auto eol=lf
+
+# Binary engine artifacts
+*.mhpw binary
+*.mhdb binary
+*.bin  binary
+*.png  binary
+*.jpg  binary
+*.ico  binary
+
+# Vendored third-party code: keep it out of language stats/review diffs.
+third_party/doctest/** linguist-vendored
+
+# Documentation and CI metadata
+*.md    linguist-documentation
+spec.md linguist-documentation
+.github/** linguist-documentation

@@ -2,10 +2,21 @@ name: ci
 
 on:
   push:
+    branches: [main]
   pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
+    name: build (${{ matrix.os }}, ${{ matrix.build }})
     strategy:
       fail-fast: false
       matrix:
@@ -28,3 +39,29 @@ jobs:
 
       - name: Test
         run: ctest --test-dir build --output-on-failure
+
+      - name: Perft(9) regression
+        if: matrix.build == 'release'
+        run: ./build/makhosfish startpos 9 | tee /tmp/perft9 && grep -q 114530830 /tmp/perft9
+
+  hygiene:
+    name: repo hygiene
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Every source file carries a license identifier
+        run: |
+          missing=0
+          while IFS= read -r f; do
+            head -2 "$f" | grep -q 'SPDX-License-Identifier: GPL-3.0-or-later' || { echo "missing SPDX header: $f"; missing=1; }
+          done < <(git ls-files 'src/*.cpp' 'src/*.hpp' 'src/**/*.cpp' 'src/**/*.hpp' \
+                                   'tests/*.cpp' 'tests/*.hpp' 'tools/*.cpp' \
+                                   'web/server/*.js' 'web/public/*.js')
+          exit $missing
+
+      - name: No committed build output or local state
+        run: |
+          if git ls-files | grep -Eq '^(build|build-asan)/|\.DS_Store$|node_modules/'; then
+            echo "build artifacts are tracked"; exit 1
+          fi

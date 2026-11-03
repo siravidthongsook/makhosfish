@@ -1,0 +1,85 @@
+name: Bug report
+description: Something crashed, misbehaved, or broke a frozen rule/perft count
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. Rule and perft bugs are the highest-value issues this project gets —
+        please include the exact position.
+
+        Do **not** report security vulnerabilities here; see [SECURITY.md](../blob/main/SECURITY.md).
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you expect, and what did the engine actually do?
+      placeholder: "Expected: ... Actual: ..."
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction steps
+      description: Exact commands and inputs. FEN in the frozen `<stm>:W<list>:B<list>` format preferred.
+      render: bash
+      placeholder: |
+        printf 'tci\nposition fen b:W21,22:B10,11\ngo depth 6\nquit\n' | ./build/makhosfish tci
+    validations:
+      required: true
+  - type: textarea
+    id: expected-details
+    attributes:
+      label: Engine output
+      description: Copy the relevant output, stack trace, or perft counts.
+      render: text
+  - type: input
+    id: version
+    attributes:
+      label: Commit / version
+      description: Output of `git rev-parse --short HEAD`, or the release you used.
+      placeholder: "044f10b"
+    validations:
+      required: true
+  - type: dropdown
+    id: build
+    attributes:
+      label: Build type
+      options:
+        - Release
+        - Debug
+        - Sanitizer (ASan/UBSan)
+        - Other / not sure
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: OS and compiler
+      placeholder: "macOS 15, Apple clang 17 / Ubuntu 24.04, gcc 13"
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Rules / move generation / perft
+        - Search
+        - Evaluation (E0/E1/E2)
+        - Endgame bitbases
+        - Protocol (TCI) / FEN / PDN
+        - CLI / tools / data pipeline
+        - Web board
+        - Build / CI / docs
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I searched existing issues for a duplicate
+          required: true
+        - label: This is not a security report
+          required: true

@@ -97,3 +97,8 @@ uses random openings for diversity; use `e2 vs e2` and `e1 vs e1` as ~50% contro
 Commit style: `type(scope): summary` (e.g. `feat(m4): E2 pattern eval + tuning`). Ask before
 committing. Historical commits: `0237fac` (M0), `fce2d2c` (M1/M0.5), `c4fbae1` (M2),
 `9372f09` (M3), `37a8665` (M4).
+
+## Licensing
+
+The project is `GPL-3.0-or-later`. Every source file starts with an SPDX identifier and a copyright
+line; CI enforces it. Do not paste code or data from other engines, books, or game databases.
